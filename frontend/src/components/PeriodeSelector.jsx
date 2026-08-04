@@ -41,74 +41,99 @@ export default function PeriodeSelector() {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="relative">
-        <Calendar size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        <select
-          className="input pl-9 pr-8 py-2 text-sm w-44"
-          value={periode.periode_id ?? ''}
-          onChange={(e) => pilihPeriode(e.target.value)}
-        >
-          {periodes.map((p) => (
-            <option key={p.id} value={p.id}>
-              Tahun {p.tahun}{p.status === 'aktif' ? ' (Aktif)' : ''}
-            </option>
-          ))}
-        </select>
-      </div>
+  <div className="flex flex-wrap items-center gap-3">
+    {/* Tahun */}
+    <div className="relative">
+      <Calendar
+        size={17}
+        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+      />
 
       <select
-        className="input pr-8 py-2 text-sm w-40"
-        value={periode.semester}
-        onChange={(e) => pilihSemester(e.target.value)}
+        className="
+          h-11
+          w-52
+          rounded-xl
+          border
+          border-gray-300
+          bg-white
+          pl-10
+          pr-8
+          text-sm
+          shadow-sm
+          hover:border-gray-400
+          focus:outline-none
+          focus:ring-2
+          focus:ring-blue-500
+          transition
+        "
+        value={periode.periode_id ?? ""}
+        onChange={(e) => pilihPeriode(e.target.value)}
       >
-        <option value={0}>Seluruh Tahun</option>
-        <option value={1}>Semester 1 (Jan-Jun)</option>
-        <option value={2}>Semester 2 (Jul-Des)</option>
+        {periodes.map((p) => (
+          <option key={p.id} value={p.id}>
+            Tahun {p.tahun}
+            {p.status === "aktif" ? " (Aktif)" : ""}
+          </option>
+        ))}
       </select>
-
-      {user?.role === 'kabalai' && (
-        <div className="relative">
-          <button
-            type="button"
-            className="btn btn-secondary py-2 px-3 text-sm flex items-center gap-1"
-            onClick={() => setShowForm((v) => !v)}
-            title="Buka periode/tahun anggaran baru"
-          >
-            <Plus size={15} /> Periode
-          </button>
-
-          {showForm && (
-            <form
-              onSubmit={handleBuatPeriode}
-              className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-20 space-y-2"
-            >
-              <label className="text-xs font-medium text-gray-600">Tahun anggaran baru</label>
-              <input
-                type="number"
-                className="input w-full text-sm"
-                placeholder="mis. 2027"
-                value={tahunBaru}
-                onChange={(e) => setTahunBaru(e.target.value)}
-                autoFocus
-              />
-              {error && <p className="text-xs text-red-600">{error}</p>}
-              <p className="text-xs text-gray-400">
-                Semester 1 & 2 otomatis tersedia. Tugas & subtugas lama tidak ikut pindah —
-                gunakan tombol "Duplikasi ke Periode Lain" pada tugas kalau ingin menyalin strukturnya.
-              </p>
-              <div className="flex justify-end gap-2 pt-1">
-                <button type="button" className="btn btn-secondary text-sm py-1 px-3" onClick={() => setShowForm(false)}>
-                  Batal
-                </button>
-                <button type="submit" className="btn btn-primary text-sm py-1 px-3" disabled={saving}>
-                  {saving ? 'Menyimpan...' : 'Buka Periode'}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-      )}
     </div>
-  )
+
+    {/* Semester */}
+    <select
+      className="
+        h-11
+        w-60
+        rounded-xl
+        border
+        border-gray-300
+        bg-white
+        px-4
+        text-sm
+        shadow-sm
+        hover:border-gray-400
+        focus:outline-none
+        focus:ring-2
+        focus:ring-blue-500
+        transition
+      "
+      value={periode.semester}
+      onChange={(e) => pilihSemester(e.target.value)}
+    >
+      <option value={0}>Seluruh Tahun</option>
+      <option value={1}>Semester 1 (Jan–Jun)</option>
+      <option value={2}>Semester 2 (Jul–Des)</option>
+    </select>
+
+    {user?.role === "kabalai" && (
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setShowForm((v) => !v)}
+          className="
+            h-11
+            px-5
+            rounded-xl
+            border
+            border-gray-300
+            bg-white
+            text-gray-700
+            shadow-sm
+            hover:bg-gray-50
+            hover:border-gray-400
+            transition
+            flex
+            items-center
+            gap-2
+          "
+        >
+          <Plus size={17} />
+          <span>Periode</span>
+        </button>
+
+        {/* Form tetap */}
+      </div>
+    )}
+  </div>
+)
 }

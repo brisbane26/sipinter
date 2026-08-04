@@ -164,27 +164,6 @@ export default function TugasDetailView({ basePath, role }) {
         </div>
       )}
 
-      <div className="card p-5">
-        <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><MessageSquare size={17} /> Catatan / Diskusi</h2>
-        <div className="space-y-3 mb-4 max-h-72 overflow-y-auto">
-          {!comments.length ? <p className="text-sm text-gray-400">Belum ada catatan.</p> : comments.map((c) => (
-            <div key={c.id} className="text-sm">
-              <span className="font-medium text-gray-800">{c.user?.name}</span>{' '}
-              <span className="text-xs text-gray-400">({c.user?.role})</span>
-              <p className="text-gray-600">{c.komentar}</p>
-            </div>
-          ))}
-        </div>
-        {canComment ? (
-          <form onSubmit={handleComment} className="flex gap-2">
-            <input className="input flex-1" placeholder="Tulis catatan..." value={comment} onChange={(e) => setComment(e.target.value)} />
-            <button className="btn btn-primary"><Send size={16} /></button>
-          </form>
-        ) : (
-          <p className="text-xs text-gray-400">Hanya Kabalai, Kasubag, dan Katim yang dapat menulis catatan.</p>
-        )}
-      </div>
-
       <Modal open={subtugasOpen} onClose={() => setSubtugasOpen(false)} title="Tambah Subtugas">
         <form onSubmit={handleAddSubtugas} className="space-y-4">
           <div>
