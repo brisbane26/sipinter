@@ -26,9 +26,14 @@ export function statusBadgeClass(status) {
   return `badge ${map[status] || 'badge-belum'}`
 }
 
-// Bangun URL lengkap untuk file yang disimpan di /storage backend (mis. foto profil).
+// Bangun URL lengkap untuk file (mis. foto profil).
+// Sejak file dipindah ke Supabase Storage, nilai yang tersimpan (mis. user.foto) sudah
+// berupa URL publik penuh (https://...supabase.co/storage/v1/object/public/...) — jadi
+// dikembalikan apa adanya. Fallback ke prefix /storage/ lama hanya untuk data lama
+// (sebelum migrasi) yang masih berupa path lokal, mis. "profil/xxxx.jpg".
 export function storageUrl(relPath) {
   if (!relPath) return null
+  if (/^https?:\/\//i.test(relPath)) return relPath
   const apiUrl = import.meta.env.VITE_API_URL
   const origin = apiUrl ? apiUrl.replace(/\/api\/?$/, '') : ''
   return `${origin}/storage/${relPath}`
