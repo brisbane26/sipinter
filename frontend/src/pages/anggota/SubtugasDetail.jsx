@@ -24,16 +24,10 @@ export default function SubtugasDetail() {
         return res.data
       })
 
-      const tugasId = res.data.tugas?.id
-      Promise.all([
-        api.get('/comments', { params: { subtugas_id: id } }),
-        tugasId ? api.get('/comments', { params: { tugas_id: tugasId } }) : Promise.resolve({ data: [] }),
-      ]).then(([subtugasRes, tugasRes]) => {
-        const merged = [...subtugasRes.data, ...tugasRes.data].sort(
-          (a, b) => new Date(a.created_at) - new Date(b.created_at)
-        )
-        setComments(merged)
-      })
+      // Hanya catatan yang memang ditulis khusus untuk subtugas ini (subtugas_id),
+      // bukan digabung dengan semua catatan umum di level tugas (tugas_id) --
+      // supaya catatan atasan tidak nyasar tampil di subtugas lain yang tidak dituju.
+      api.get('/comments', { params: { subtugas_id: id } }).then((res) => setComments(res.data))
     })
   }
 

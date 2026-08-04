@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import pool from '../db/pool.js';
 import { hashToken } from '../middleware/auth.js';
-import { relativePath } from '../middleware/upload.js';
+import { uploadToSupabase } from '../middleware/upload.js';
 
 const ROUNDS = Number(process.env.BCRYPT_ROUNDS || 12);
 
@@ -72,8 +72,8 @@ export async function updateProfile(req, res) {
   if (typeof body.jabatan !== 'undefined') fields.jabatan = body.jabatan || null;
 
   if (req.file) {
-    const relPath = relativePath('profil', req.file.filename);
-    fields.foto = relPath;
+    const { url } = await uploadToSupabase(req.file, 'profil');
+    fields.foto = url;
   }
 
   if (body.password) {

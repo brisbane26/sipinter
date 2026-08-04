@@ -2,6 +2,7 @@ import pool from '../db/pool.js';
 import * as ActivityLog from '../utils/activityLog.js';
 import * as NotificationService from '../services/notificationService.js';
 import { recalculateProgress } from '../utils/tugasHelper.js';
+import { fileUrl } from '../middleware/upload.js';
 
 /**
  * Tahap 1: Katim memverifikasi subtugas anggotanya (baik yang dia buat sendiri
@@ -198,7 +199,7 @@ export async function antrianKatim(req, res) {
         `SELECT * FROM subtugas_files WHERE subtugas_update_id = $1`,
         [updateRows[0].id]
       );
-      updateRows[0].files = fileRows.map((f) => ({ ...f, url: `/storage/${f.file_path}` }));
+      updateRows[0].files = fileRows.map((f) => ({ ...f, url: fileUrl(req, f.file_path) }));
     }
     s.updates = updateRows;
   }
@@ -232,7 +233,7 @@ export async function antrianKasubag(req, res) {
         `SELECT * FROM subtugas_files WHERE subtugas_update_id = $1`,
         [updateRows[0].id]
       );
-      updateRows[0].files = fileRows.map((f) => ({ ...f, url: `/storage/${f.file_path}` }));
+      updateRows[0].files = fileRows.map((f) => ({ ...f, url: fileUrl(req, f.file_path) }));
     }
     s.updates = updateRows;
   }

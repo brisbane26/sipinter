@@ -3,7 +3,7 @@ import * as Semester from '../utils/semester.js';
 import * as ActivityLog from '../utils/activityLog.js';
 import * as NotificationService from '../services/notificationService.js';
 import { buildPaginationResponse } from '../utils/paginate.js';
-import { classifyFileType, relativePath } from '../middleware/upload.js';
+import { classifyFileType, uploadToSupabase, fileUrl } from '../middleware/upload.js';
 
 // "Tugas" = pekerjaan yang diberikan Kasubag ke Katim.
 export async function index(req, res) {
@@ -195,13 +195,13 @@ export async function show(req, res) {
         `SELECT * FROM subtugas_files WHERE subtugas_update_id = $1`,
         [upd.id]
       );
-      upd.files = fileRows.map((f) => ({ ...f, url: `/storage/${f.file_path}` }));
+      upd.files = fileRows.map((f) => ({ ...f, url: fileUrl(req, f.file_path) }));
     }
     s.updates = updateRows;
   }
 
   const { rows: files } = await pool.query(`SELECT * FROM subtugas_files WHERE tugas_id = $1`, [tugasId]);
-  tugas.files = files.map((f) => ({ ...f, url: `/storage/${f.file_path}` }));
+  tugas.files = files.map((f) => ({ ...f, url: fileUrl(req, f.file_path) }));
 
   const { rows: comments } = await pool.query(
     `SELECT c.*, json_build_object('id', u.id, 'name', u.name, 'role', u.role) AS user
@@ -349,14 +349,14 @@ export async function uploadLampiran(req, res) {
   }
 
   const tugasId = req.params.tugas;
-  const relPath = relativePath('lampiran-tugas', req.file.filename);
+  const { url } = await uploadToSupabase(req.file, 'lampiran-tugas');
   const type = classifyFileType(req.file.originalname);
 
   const { rows } = await pool.query(
     `INSERT INTO subtugas_files (tugas_id, file_path, file_name, file_type, keterangan, uploaded_at)
      VALUES ($1,$2,$3,$4,$5,now()) RETURNING *`,
-    [tugasId, relPath, req.file.originalname, type, req.body?.keterangan || null]
+    [tugasId, url, req.file.originalname, type, req.body?.keterangan || null]
   );
 
-  return res.status(201).json({ ...rows[0], url: `/storage/${relPath}` });
+  return res.status(201).json({ ...rows[0], url: fileUrl(req, url) });
 }
