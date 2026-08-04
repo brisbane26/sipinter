@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ProgressBar from './ProgressBar'
 import { formatDate, statusBadgeClass } from '../lib/helpers'
-import { Paperclip, CheckCircle2, XCircle, Lock } from 'lucide-react'
+import { Paperclip, CheckCircle2, XCircle, Lock, MessageSquare, Send } from 'lucide-react'
 import api from '../lib/api'
 
 // Baris subtugas yang dipakai di dalam TugasDetailView.
@@ -10,10 +10,32 @@ import api from '../lib/api'
 export default function SubtugasRow({ subtugas, role, onChanged }) {
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
+  const [comments, setComments] = useState([])
+  const [commentText, setCommentText] = useState('')
+  const [sendingComment, setSendingComment] = useState(false)
   const lastUpdate = subtugas.updates?.[0]
 
   const canVerifikasiKatim = role === 'katim' && subtugas.status === 'Menunggu Verifikasi Katim'
   const canVerifikasiKasubag = role === 'kasubag' && subtugas.status === 'Menunggu Verifikasi Kasubag'
+
+  // Catatan di sini khusus untuk subtugas ini saja (subtugas_id), bukan catatan
+  // umum tugas (yang tampil di bagian "Catatan / Diskusi" pada TugasDetailView).
+  useEffect(() => {
+    api.get('/comments', { params: { subtugas_id: subtugas.id } }).then((res) => setComments(res.data))
+  }, [subtugas.id])
+
+  async function handleAddComment(e) {
+    e.preventDefault()
+    if (!commentText.trim()) return
+    setSendingComment(true)
+    try {
+      const res = await api.post('/comments', { subtugas_id: subtugas.id, komentar: commentText })
+      setComments([...comments, res.data])
+      setCommentText('')
+    } finally {
+      setSendingComment(false)
+    }
+  }
 
   async function verifikasi(tahap, keputusan) {
     if (keputusan === 'ditolak' && !note.trim()) {
@@ -87,6 +109,34 @@ export default function SubtugasRow({ subtugas, role, onChanged }) {
           </div>
         </div>
       )}
+
+      <div className="mt-3 border-t border-gray-100 pt-3">
+        <p className="text-xs font-medium text-gray-500 flex items-center gap-1.5 mb-2">
+          <MessageSquare size={13} /> Catatan untuk subtugas ini
+        </p>
+        {comments.length > 0 && (
+          <div className="space-y-2 mb-2">
+            {comments.map((c) => (
+              <div key={c.id} className="text-sm">
+                <span className="font-medium text-gray-800">{c.user?.name}</span>{' '}
+                <span className="text-xs text-gray-400">({c.user?.role})</span>
+                <p className="text-gray-600">{c.komentar}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        <form onSubmit={handleAddComment} className="flex gap-2">
+          <input
+            className="input flex-1 text-sm"
+            placeholder="Tulis catatan untuk subtugas ini..."
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+          />
+          <button type="submit" disabled={sendingComment} className="btn btn-secondary text-sm">
+            <Send size={14} />
+          </button>
+        </form>
+      </div>
     </div>
   )
 }

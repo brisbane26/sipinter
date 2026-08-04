@@ -2,7 +2,7 @@ import pool from '../db/pool.js';
 import * as ActivityLog from '../utils/activityLog.js';
 import * as NotificationService from '../services/notificationService.js';
 import { recalculateProgress, getLocked } from '../utils/tugasHelper.js';
-import { classifyFileType, relativePath } from '../middleware/upload.js';
+import { classifyFileType, uploadToSupabase, fileUrl } from '../middleware/upload.js';
 
 // Anggota mengirim update progres + bukti (foto/pdf/word/excel/dll, multi-file).
 export async function store(req, res) {
@@ -40,12 +40,15 @@ export async function store(req, res) {
 
   const files = req.files || [];
   for (const f of files) {
-    const relPath = relativePath('bukti-kerja', f.filename);
+    // Upload ke Supabase Storage (bukan disk lokal) supaya bukti kerja ini bisa dibuka
+    // oleh staff lain (katim/kasubag) dari instance backend mana pun, tidak "Route tidak
+    // ditemukan" gara-gara filenya cuma ada di disk instance yang menerima upload.
+    const { url } = await uploadToSupabase(f, 'bukti-kerja');
     const type = classifyFileType(f.originalname);
     await pool.query(
       `INSERT INTO subtugas_files (subtugas_update_id, file_path, file_name, file_type, uploaded_at)
        VALUES ($1,$2,$3,$4,now())`,
-      [update.id, relPath, f.originalname, type]
+      [update.id, url, f.originalname, type]
     );
   }
 
@@ -85,7 +88,7 @@ export async function store(req, res) {
   const { rows: fileRows } = await pool.query(`SELECT * FROM subtugas_files WHERE subtugas_update_id = $1`, [
     update.id,
   ]);
-  update.files = fileRows.map((f) => ({ ...f, url: `/storage/${f.file_path}` }));
+  update.files = fileRows.map((f) => ({ ...f, url: fileUrl(req, f.file_path) }));
 
   return res.status(201).json(update);
 }

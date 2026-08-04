@@ -3,6 +3,7 @@ import * as Semester from '../utils/semester.js';
 import * as ActivityLog from '../utils/activityLog.js';
 import * as NotificationService from '../services/notificationService.js';
 import { recalculateProgress } from '../utils/tugasHelper.js';
+import { fileUrl } from '../middleware/upload.js';
 
 // Daftar subtugas milik user yang login (halaman "Subtugas Saya" & "Riwayat" Anggota)
 export async function index(req, res) {
@@ -93,7 +94,7 @@ export async function show(req, res) {
       `SELECT * FROM subtugas_files WHERE subtugas_update_id = $1`,
       [upd.id]
     );
-    upd.files = fileRows.map((f) => ({ ...f, url: `/storage/${f.file_path}` }));
+    upd.files = fileRows.map((f) => ({ ...f, url: fileUrl(req, f.file_path) }));
   }
   subtugas.updates = updateRows;
 
