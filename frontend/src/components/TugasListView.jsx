@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import api from '../lib/api'
+import { useAutoRefresh } from '../lib/useAutoRefresh'
 import { Link } from 'react-router-dom'
 import { usePeriode } from '../context/PeriodeContext'
 import Modal from './Modal'
@@ -7,16 +8,38 @@ import ProgressBar from './ProgressBar'
 import Loading from './Loading'
 import EmptyState from './EmptyState'
 import { formatDate, statusBadgeClass } from '../lib/helpers'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Layers } from 'lucide-react'
 
 const STATUSES = ['Belum Dimulai', 'Sedang Berjalan', 'Menunggu Verifikasi', 'Selesai', 'Terlambat']
+const TANPA_KODE = '__tanpa_kode__'
 
-export default function TugasListView({ basePath, canCreate, title, subtitle }) {
+// Kelompokkan daftar tugas berdasarkan kode_tim milik tim pemilik tugas.
+// Tim tanpa kode_tim (kosong/null) dikelompokkan ke grup "Tanpa Kode".
+function groupTugasByKodeTim(tugasList) {
+  const groups = new Map()
+
+  for (const t of tugasList) {
+    const kode = t.team?.kode_tim?.trim() || TANPA_KODE
+    if (!groups.has(kode)) {
+      groups.set(kode, { kode_tim: kode, nama_tim: t.team?.nama_tim || '-', items: [] })
+    }
+    groups.get(kode).items.push(t)
+  }
+
+  return [...groups.values()].sort((a, b) => {
+    if (a.kode_tim === TANPA_KODE) return 1
+    if (b.kode_tim === TANPA_KODE) return -1
+    return a.kode_tim.localeCompare(b.kode_tim)
+  })
+}
+
+export default function TugasListView({ basePath, canCreate, title, subtitle, groupByTeam }) {
   const { periode } = usePeriode()
   const [tugasList, setTugasList] = useState(null)
   const [teams, setTeams] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [teamFilter, setTeamFilter] = useState('')
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({ judul: '', deskripsi: '', deadline: '', team_id: '' })
   const [saving, setSaving] = useState(false)
@@ -24,12 +47,28 @@ export default function TugasListView({ basePath, canCreate, title, subtitle }) 
 
   function load() {
     if (!periode.periode_id) return
-    api.get('/tugas', { params: { search, status: statusFilter, periode_id: periode.periode_id, semester: periode.semester } })
-      .then((res) => setTugasList(res.data.data))
+    api.get('/tugas', {
+      params: {
+        search,
+        status: statusFilter,
+        team_id: teamFilter || undefined,
+        periode_id: periode.periode_id,
+        semester: periode.semester,
+      },
+    }).then((res) => setTugasList(res.data.data))
   }
 
-  useEffect(() => { load() }, [search, statusFilter, periode.periode_id, periode.semester])
-  useEffect(() => { if (canCreate) api.get('/teams').then((res) => setTeams(res.data)) }, [canCreate])
+  useAutoRefresh(load, [search, statusFilter, teamFilter, periode.periode_id, periode.semester])
+  useEffect(() => { if (canCreate || groupByTeam) api.get('/teams').then((res) => setTeams(res.data)) }, [canCreate, groupByTeam])
+
+  const groupedTugas = useMemo(() => {
+    if (!groupByTeam || !tugasList) return null
+    return groupTugasByKodeTim(tugasList)
+  }, [groupByTeam, tugasList])
+
+  const teamOptions = useMemo(() => {
+    return [...teams].sort((a, b) => (a.kode_tim || a.nama_tim).localeCompare(b.kode_tim || b.nama_tim))
+  }, [teams])
 
   async function handleCreate(e) {
     e.preventDefault()
@@ -57,7 +96,7 @@ export default function TugasListView({ basePath, canCreate, title, subtitle }) 
         {canCreate && <button onClick={() => setOpen(true)} className="btn btn-primary"><Plus size={16} /> Buat Tugas</button>}
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-4">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input className="input pl-9" placeholder="Cari judul atau deskripsi..." value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -66,26 +105,37 @@ export default function TugasListView({ basePath, canCreate, title, subtitle }) 
           <option value="">Semua Status</option>
           {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
+        {groupByTeam && (
+          <select className="input sm:w-64" value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}>
+            <option value="">Semua Kategori (Kode Tim)</option>
+            {teamOptions.map((t) => (
+              <option key={t.id} value={t.id}>{t.kode_tim ? `${t.kode_tim} — ${t.nama_tim}` : t.nama_tim}</option>
+            ))}
+          </select>
+        )}
       </div>
 
-      {!tugasList ? <Loading /> : !tugasList.length ? <EmptyState text="Belum ada tugas pada periode ini." /> : (
-        <div className="grid md:grid-cols-2 gap-4">
-          {tugasList.map((t) => (
-            <Link key={t.id} to={`${basePath}/${t.id}`} className="card p-5 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="font-semibold text-gray-900">{t.judul}</h3>
+      {!tugasList ? <Loading /> : !tugasList.length ? <EmptyState text="Belum ada tugas pada periode ini." /> : groupByTeam ? (
+        <div className="space-y-8">
+          {groupedTugas.map((group) => (
+            <div key={group.kode_tim}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="inline-flex items-center gap-1.5 bg-brand-50 text-brand-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                  <Layers size={12} />
+                  {group.kode_tim === TANPA_KODE ? 'Tanpa Kode Tim' : group.kode_tim}
+                </span>
+                <h2 className="font-semibold text-gray-900">{group.nama_tim}</h2>
+                <span className="text-xs text-gray-400">({group.items.length} tugas)</span>
               </div>
-              <p className="text-sm text-gray-500 mt-1">Tim: {t.team?.nama_tim} · {t.subtugas_count} subtugas</p>
-              <div className="mt-3">
-                <div className="flex justify-between text-xs text-gray-500 mb-1"><span>Progress</span><span>{t.progress}%</span></div>
-                <ProgressBar value={t.progress} />
+              <div className="grid md:grid-cols-2 gap-4">
+                {group.items.map((t) => <TugasCard key={t.id} t={t} basePath={basePath} />)}
               </div>
-              <div className="flex items-center justify-between mt-3">
-                <span className={statusBadgeClass(t.status)}>{t.status}</span>
-                {t.deadline && <span className="text-xs text-gray-400">Deadline: {formatDate(t.deadline)}</span>}
-              </div>
-            </Link>
+            </div>
           ))}
+        </div>
+      ) : (
+        <div className="grid md:grid-cols-2 gap-4">
+          {tugasList.map((t) => <TugasCard key={t.id} t={t} basePath={basePath} />)}
         </div>
       )}
 
@@ -121,5 +171,24 @@ export default function TugasListView({ basePath, canCreate, title, subtitle }) 
         </Modal>
       )}
     </div>
+  )
+}
+
+function TugasCard({ t, basePath }) {
+  return (
+    <Link to={`${basePath}/${t.id}`} className="card p-5 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="font-semibold text-gray-900">{t.judul}</h3>
+      </div>
+      <p className="text-sm text-gray-500 mt-1">Tim: {t.team?.nama_tim} · {t.subtugas_count} subtugas</p>
+      <div className="mt-3">
+        <div className="flex justify-between text-xs text-gray-500 mb-1"><span>Progress</span><span>{t.progress}%</span></div>
+        <ProgressBar value={t.progress} />
+      </div>
+      <div className="flex items-center justify-between mt-3">
+        <span className={statusBadgeClass(t.status)}>{t.status}</span>
+        {t.deadline && <span className="text-xs text-gray-400">Deadline: {formatDate(t.deadline)}</span>}
+      </div>
+    </Link>
   )
 }

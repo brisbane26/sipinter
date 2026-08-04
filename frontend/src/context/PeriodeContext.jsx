@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { fetchPeriodes, semesterDariTanggal } from '../lib/periode'
+import { fetchPeriodes } from '../lib/periode'
 import { useAuth } from './AuthContext.jsx'
 
 const PeriodeContext = createContext(null)
@@ -34,7 +34,15 @@ export function PeriodeProvider({ children }) {
             periode_id: terpilih.id,
             tahun: terpilih.tahun,
             status: terpilih.status,
-            semester: semesterDariTanggal(),
+            // PENTING: default-nya "Seluruh Tahun" (0), BUKAN semester berdasarkan tanggal
+            // hari ini. Kalau default ikut tanggal hari ini, sementara periode yang sedang
+            // "aktif" di database tahunnya beda dari tahun kalender sekarang (mis. Kabalai
+            // belum sempat buka periode tahun baru), maka tugas/subtugas yang BARU DIBUAT
+            // (created_at = hari ini) akan langsung ke-filter hilang dari semua daftar &
+            // dashboard karena tanggalnya jatuh di luar rentang semester periode lama itu --
+            // walaupun datanya tersimpan benar di database (makanya masih bisa dibuka lewat
+            // link notifikasi, yang tidak memfilter berdasarkan semester).
+            semester: 0,
           })
         }
       } finally {

@@ -26,6 +26,14 @@ export function statusBadgeClass(status) {
   return `badge ${map[status] || 'badge-belum'}`
 }
 
+// Bangun URL lengkap untuk file yang disimpan di /storage backend (mis. foto profil).
+export function storageUrl(relPath) {
+  if (!relPath) return null
+  const apiUrl = import.meta.env.VITE_API_URL
+  const origin = apiUrl ? apiUrl.replace(/\/api\/?$/, '') : ''
+  return `${origin}/storage/${relPath}`
+}
+
 export function roleLabel(role) {
   return { kabalai: 'Kabalai', kasubag: 'Kasubag', katim: 'Kepala Tim', anggota: 'Anggota' }[role] || role
 }
