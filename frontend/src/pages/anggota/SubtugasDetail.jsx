@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import api from '../../lib/api'
+import { useAutoRefresh } from '../../lib/useAutoRefresh'
 import ProgressBar from '../../components/ProgressBar'
 import Loading from '../../components/Loading'
 import { formatDate, statusBadgeClass } from '../../lib/helpers'
@@ -18,13 +19,25 @@ export default function SubtugasDetail() {
 
   function load() {
     api.get(`/subtugas/${id}`).then((res) => {
-      setSubtugas(res.data)
-      setPersentase(Number(res.data.progress))
+      setSubtugas((prev) => {
+        if (!prev) setPersentase(Number(res.data.progress))
+        return res.data
+      })
+
+      const tugasId = res.data.tugas?.id
+      Promise.all([
+        api.get('/comments', { params: { subtugas_id: id } }),
+        tugasId ? api.get('/comments', { params: { tugas_id: tugasId } }) : Promise.resolve({ data: [] }),
+      ]).then(([subtugasRes, tugasRes]) => {
+        const merged = [...subtugasRes.data, ...tugasRes.data].sort(
+          (a, b) => new Date(a.created_at) - new Date(b.created_at)
+        )
+        setComments(merged)
+      })
     })
-    api.get('/comments', { params: { subtugas_id: id } }).then((res) => setComments(res.data))
   }
 
-  useEffect(() => { load() }, [id])
+  useAutoRefresh(load, [id])
 
   async function handleUpdate(e) {
     e.preventDefault()
@@ -34,7 +47,7 @@ export default function SubtugasDetail() {
       const form = new FormData()
       form.append('persentase', persentase)
       form.append('catatan', catatan)
-      files.forEach((f) => form.append('files[]', f))
+      files.forEach((f) => form.append('files', f))
       await api.post(`/subtugas/${id}/updates`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
       setCatatan('')
       setFiles([])

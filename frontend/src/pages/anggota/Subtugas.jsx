@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import api from '../../lib/api'
+import { useAutoRefresh } from '../../lib/useAutoRefresh'
 import { usePeriode } from '../../context/PeriodeContext'
 import { Link } from 'react-router-dom'
 import ProgressBar from '../../components/ProgressBar'
@@ -14,10 +15,18 @@ export default function Subtugas() {
   const [items, setItems] = useState(null)
   const [statusFilter, setStatusFilter] = useState('')
 
-  useEffect(() => {
-    setItems(null)
-    api.get('/subtugas', { params: { status: statusFilter, ...periode } }).then((res) => setItems(res.data))
-  }, [statusFilter, periode])
+  useAutoRefresh(() => {
+    api
+      .get('/subtugas', {
+        params: {
+          status: statusFilter,
+          periode_id: periode.periode_id,
+          semester: periode.semester,
+        },
+      })
+      .then((res) => setItems(res.data))
+      .catch(() => setItems((prev) => prev ?? []))
+  }, [statusFilter, periode.periode_id, periode.semester])
 
   return (
     <div>

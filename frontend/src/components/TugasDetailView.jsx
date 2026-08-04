@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import api from '../lib/api'
+import { useAutoRefresh } from '../lib/useAutoRefresh'
 import { useAuth } from '../context/AuthContext'
 import ProgressBar from './ProgressBar'
 import Modal from './Modal'
@@ -41,7 +42,7 @@ export default function TugasDetailView({ basePath, role }) {
     api.get('/comments', { params: { tugas_id: id } }).then((res) => setComments(res.data))
   }
 
-  useEffect(() => { load() }, [id])
+  useAutoRefresh(load, [id])
   useEffect(() => { if (tugas?.team) setUsers(tugas.team.members || []) }, [tugas])
 
   async function handleAddSubtugas(e) {

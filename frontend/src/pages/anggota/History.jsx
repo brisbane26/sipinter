@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import api from '../../lib/api'
+import { useAutoRefresh } from '../../lib/useAutoRefresh'
 import { usePeriode } from '../../context/PeriodeContext'
 import Loading from '../../components/Loading'
 import EmptyState from '../../components/EmptyState'
@@ -11,10 +12,9 @@ export default function History() {
   const { periode } = usePeriode()
   const [items, setItems] = useState(null)
 
-  useEffect(() => {
-    setItems(null)
+  useAutoRefresh(() => {
     api.get('/subtugas', { params: periode }).then((res) => setItems(res.data))
-  }, [periode])
+  }, [periode.periode_id, periode.semester])
 
   if (!items) return <Loading />
 

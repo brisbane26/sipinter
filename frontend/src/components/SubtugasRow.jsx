@@ -49,13 +49,25 @@ export default function SubtugasRow({ subtugas, role, onChanged }) {
 
       {lastUpdate && (
         <div className="mt-2 bg-gray-50 rounded-lg p-3 text-sm">
-          <p className="text-gray-600">{lastUpdate.catatan || 'Tidak ada catatan dari anggota.'}</p>
-          {lastUpdate.files?.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {lastUpdate.files.map((f) => (
-                <a key={f.id} href={f.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-brand-600 hover:underline">
-                  <Paperclip size={12} /> {f.file_name || `Bukti ${f.id}`}
-                </a>
+          {subtugas.updates?.length > 0 && (
+            <div className="mt-2 space-y-2">
+              {subtugas.updates.map((u) => (
+                <div key={u.id} className="bg-gray-50 rounded-lg p-3 text-sm">
+                  <div className="flex justify-between text-xs text-gray-400 mb-1">
+                    <span>{u.persentase}%</span>
+                    <span>{formatDate(u.created_at)}</span>
+                  </div>
+                  <p className="text-gray-600">{u.catatan || 'Tidak ada catatan dari anggota.'}</p>
+                  {u.files?.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {u.files.map((f) => (
+                        <a key={f.id} href={f.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-brand-600 hover:underline">
+                          <Paperclip size={12} /> {f.file_name || `Bukti ${f.id}`}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}
