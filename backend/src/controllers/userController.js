@@ -133,3 +133,39 @@ export async function destroy(req, res) {
 
   return res.json({ message: 'User dinonaktifkan.' });
 }
+
+export async function destroyPermanent(req, res) {
+  const userId = req.params.user;
+
+  const { rows: userRows } = await pool.query(`SELECT * FROM users WHERE id = $1`, [userId]);
+  if (userRows.length === 0) return res.status(404).json({ message: 'User tidak ditemukan.' });
+
+  // Skema DB pakai ON DELETE CASCADE untuk katim_id, assigned_to, created_by --
+  // kalau langsung dihapus, tim/tugas/subtugas milik user ini ikut lenyap.
+  // Jadi hapus permanen ditolak dulu selama masih ada data yang bergantung padanya.
+  const { rows: teamRows } = await pool.query(`SELECT nama_tim FROM teams WHERE katim_id = $1`, [userId]);
+  if (teamRows.length > 0) {
+    return res.status(422).json({
+      message: `User ini masih menjadi Kepala Tim di: ${teamRows.map((t) => t.nama_tim).join(', ')}. Ganti Katim tim tersebut dulu sebelum menghapus permanen.`,
+    });
+  }
+
+  const { rows: subtugasRows } = await pool.query(`SELECT id FROM subtugas WHERE assigned_to = $1`, [userId]);
+  if (subtugasRows.length > 0) {
+    return res.status(422).json({
+      message: `User ini masih memiliki ${subtugasRows.length} subtugas yang di-assign ke dia. Alihkan dulu subtugas tersebut, atau nonaktifkan saja user ini.`,
+    });
+  }
+
+  const { rows: tugasRows } = await pool.query(`SELECT id FROM tugas WHERE created_by = $1`, [userId]);
+  if (tugasRows.length > 0) {
+    return res.status(422).json({
+      message: `User ini pernah membuat ${tugasRows.length} tugas. Menghapus permanen akan ikut menghapus tugas tersebut -- disarankan nonaktifkan saja, bukan dihapus.`,
+    });
+  }
+
+  await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
+  await ActivityLog.catat(req.user.id, `menghapus permanen user ${userRows[0].name}`, 'users', userId);
+
+  return res.json({ message: 'User dihapus permanen.' });
+}

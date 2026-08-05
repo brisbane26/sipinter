@@ -41,20 +41,26 @@ export default function Dashboard() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 card p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">Progress per Tim</h2>
-          {!progressPerTim?.length ? <EmptyState /> : (
-            <div className="space-y-4">
-              {progressPerTim.map((t) => (
-                <div key={t.team_id}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="font-medium text-gray-800">{t.nama_tim} <span className="text-gray-400 font-normal">· {t.katim}</span></span>
-                    <span className="text-gray-500">{t.progress}%</span>
-                  </div>
-                  <ProgressBar value={t.progress} />
+          <h2 className="font-semibold text-gray-900 mb-5">Progress per Tim</h2>
+          <div className="space-y-5">
+            {progressPerTim.map((t) => (
+              <Link
+                key={t.team_id}
+                to={`/kabalai/tugas?team_id=${t.team_id}`}
+                className="block group"
+              >
+                <div className="text-sm font-medium text-gray-800 mb-1.5 group-hover:text-brand-600 transition-colors">
+                  {t.nama_tim} <span className="text-gray-400 font-normal">· {t.katim}</span>
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <ProgressBar value={t.progress} />
+                  </div>
+                  <span className="text-sm text-gray-500 w-11 text-right tabular-nums">{t.progress}%</span>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
 
         <div className="card p-5">

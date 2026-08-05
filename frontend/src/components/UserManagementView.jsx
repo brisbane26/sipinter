@@ -4,7 +4,7 @@ import Modal from './Modal'
 import Loading from './Loading'
 import EmptyState from './EmptyState'
 import { roleLabel } from '../lib/helpers'
-import { Plus, Pencil, UserX, Search } from 'lucide-react'
+import { Plus, Pencil, UserX, UserCheck, Trash2, Search, AlertTriangle } from 'lucide-react'
 
 export default function UserManagementView() {
   const [users, setUsers] = useState(null)
@@ -15,6 +15,16 @@ export default function UserManagementView() {
   const [form, setForm] = useState({ name: '', nip: '', email: '', jabatan: '', role: 'anggota', password: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  const [deactivateTarget, setDeactivateTarget] = useState(null)
+  const [deactivating, setDeactivating] = useState(false)
+  const [deactivateError, setDeactivateError] = useState('')
+
+  const [activatingId, setActivatingId] = useState(null)
+
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   function load() { api.get('/users', { params: { search, role: roleFilter } }).then((res) => setUsers(res.data.data)) }
 
@@ -50,10 +60,56 @@ export default function UserManagementView() {
     }
   }
 
-  async function handleDeactivate(u) {
-    if (!confirm(`Nonaktifkan akun ${u.name}?`)) return
-    await api.delete(`/users/${u.id}`)
-    load()
+  // Aktifkan kembali -- aksi ringan & bisa dibalik (tinggal nonaktifkan lagi kalau salah),
+  // jadi tanpa modal konfirmasi, langsung jalan.
+  async function handleActivate(u) {
+    setActivatingId(u.id)
+    try {
+      await api.put(`/users/${u.id}`, { is_active: true })
+      load()
+    } finally {
+      setActivatingId(null)
+    }
+  }
+
+  function openDeactivate(u) {
+    setDeactivateError('')
+    setDeactivateTarget(u)
+  }
+
+  async function handleDeactivate() {
+    if (!deactivateTarget) return
+    setDeactivating(true)
+    setDeactivateError('')
+    try {
+      await api.delete(`/users/${deactivateTarget.id}`)
+      setDeactivateTarget(null)
+      load()
+    } catch (err) {
+      setDeactivateError(err.response?.data?.message || 'Gagal menonaktifkan user.')
+    } finally {
+      setDeactivating(false)
+    }
+  }
+
+  function openDelete(u) {
+    setDeleteError('')
+    setDeleteTarget(u)
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setDeleteError('')
+    try {
+      await api.delete(`/users/${deleteTarget.id}/permanent`)
+      setDeleteTarget(null)
+      load()
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || 'Gagal menghapus user.')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -61,7 +117,7 @@ export default function UserManagementView() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Manajemen User</h1>
-          <p className="text-sm text-gray-500">Tambah, ubah, atau nonaktifkan akun pegawai.</p>
+          <p className="text-sm text-gray-500">Tambah, ubah, aktifkan/nonaktifkan, atau hapus akun pegawai.</p>
         </div>
         <button onClick={openCreate} className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60"><Plus size={16} /> Tambah User</button>
       </div>
@@ -103,8 +159,13 @@ export default function UserManagementView() {
                   <td className="px-4 py-3"><span className={`badge ${u.is_active ? 'badge-selesai' : 'badge-terlambat'}`}>{u.is_active ? 'Aktif' : 'Nonaktif'}</span></td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
-                      <button onClick={() => openEdit(u)} className="text-gray-400 hover:text-gray-700"><Pencil size={16} /></button>
-                      {u.is_active && <button onClick={() => handleDeactivate(u)} className="text-gray-400 hover:text-red-600"><UserX size={16} /></button>}
+                      <button onClick={() => openEdit(u)} title="Edit user" className="text-gray-400 hover:text-gray-700"><Pencil size={16} /></button>
+                      {u.is_active ? (
+                        <button onClick={() => openDeactivate(u)} title="Nonaktifkan" className="text-gray-400 hover:text-orange-600"><UserX size={16} /></button>
+                      ) : (
+                        <button onClick={() => handleActivate(u)} disabled={activatingId === u.id} title="Aktifkan kembali" className="text-gray-400 hover:text-green-600 disabled:opacity-60"><UserCheck size={16} /></button>
+                      )}
+                      <button onClick={() => openDelete(u)} title="Hapus permanen" className="text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
                     </div>
                   </td>
                 </tr>
@@ -150,6 +211,56 @@ export default function UserManagementView() {
           </div>
           <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={saving}>{saving ? 'Menyimpan...' : editing ? 'Simpan Perubahan' : 'Tambah User'}</button>
         </form>
+      </Modal>
+
+      <Modal
+        open={!!deactivateTarget}
+        onClose={() => !deactivating && setDeactivateTarget(null)}
+        title={<span className="inline-block -mx-6 -mt-6 mb-2 px-6 py-4 bg-pupr-yellow text-pupr-blue-dark font-semibold rounded-t-xl w-[calc(100%+3rem)]">Nonaktifkan User</span>}
+      >
+        <div className="space-y-4">
+          {deactivateError && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{deactivateError}</div>}
+          <div className="flex items-start gap-3 bg-red-50 text-red-700 rounded-lg px-4 py-3">
+            <AlertTriangle size={18} className="flex-shrink-0 mt-0.5" />
+            <p className="text-sm">
+              Nonaktifkan akun <span className="font-semibold">{deactivateTarget?.name}</span>?
+              Akun ini tidak akan bisa login lagi, tapi datanya tetap tersimpan dan bisa diaktifkan kembali kapan pun.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" className="btn btn-secondary" onClick={() => setDeactivateTarget(null)} disabled={deactivating}>
+              Batal
+            </button>
+            <button type="button" className="btn btn-danger" onClick={handleDeactivate} disabled={deactivating}>
+              {deactivating ? 'Memproses...' : 'Ya, Nonaktifkan'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => !deleting && setDeleteTarget(null)}
+        title={<span className="inline-block -mx-6 -mt-6 mb-2 px-6 py-4 bg-pupr-yellow text-pupr-blue-dark font-semibold rounded-t-xl w-[calc(100%+3rem)]">Hapus User Permanen</span>}
+      >
+        <div className="space-y-4">
+          {deleteError && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{deleteError}</div>}
+          <div className="flex items-start gap-3 bg-red-50 text-red-700 rounded-lg px-4 py-3">
+            <AlertTriangle size={18} className="flex-shrink-0 mt-0.5" />
+            <p className="text-sm">
+              Hapus permanen akun <span className="font-semibold">{deleteTarget?.name}</span>? Riwayat komentar dan update
+              milik user ini ikut terhapus. Tindakan ini <b>tidak bisa dibatalkan</b> — kalau ragu, gunakan "Nonaktifkan" saja.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" className="btn btn-secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              Batal
+            </button>
+            <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Menghapus...' : 'Ya, Hapus Permanen'}
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   )

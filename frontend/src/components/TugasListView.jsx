@@ -1,23 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import api from '../lib/api'
 import { useAutoRefresh } from '../lib/useAutoRefresh'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { usePeriode } from '../context/PeriodeContext'
 import Modal from './Modal'
 import ProgressBar from './ProgressBar'
 import Loading from './Loading'
 import EmptyState from './EmptyState'
 import { formatDate, statusBadgeClass } from '../lib/helpers'
-import { Plus, Search, Layers, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Search, Layers, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 
 const STATUSES = ['Belum Dimulai', 'Sedang Berjalan', 'Menunggu Verifikasi', 'Selesai', 'Terlambat']
 const TANPA_KODE = '__tanpa_kode__'
 
-// Kelompokkan daftar tugas berdasarkan kode_tim milik tim pemilik tugas.
-// Tim tanpa kode_tim (kosong/null) dikelompokkan ke grup "Tanpa Kode".
 function groupTugasByKodeTim(tugasList) {
   const groups = new Map()
-
   for (const t of tugasList) {
     const kode = t.team?.kode_tim?.trim() || TANPA_KODE
     if (!groups.has(kode)) {
@@ -25,7 +22,6 @@ function groupTugasByKodeTim(tugasList) {
     }
     groups.get(kode).items.push(t)
   }
-
   return [...groups.values()].sort((a, b) => {
     if (a.kode_tim === TANPA_KODE) return 1
     if (b.kode_tim === TANPA_KODE) return -1
@@ -33,15 +29,14 @@ function groupTugasByKodeTim(tugasList) {
   })
 }
 
-// canCreate menandakan role kasubag -- kasubag yang sama juga satu-satunya
-// yang boleh mengedit/menghapus tugas, jadi dipakai ulang sebagai canManage.
 export default function TugasListView({ basePath, canCreate, title, subtitle, groupByTeam }) {
   const { periode } = usePeriode()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [tugasList, setTugasList] = useState(null)
   const [teams, setTeams] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [teamFilter, setTeamFilter] = useState('')
+  const [teamFilter, setTeamFilter] = useState(searchParams.get('team_id') || '')
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({ judul: '', deskripsi: '', deadline: '', team_id: '' })
   const [saving, setSaving] = useState(false)
@@ -58,6 +53,11 @@ export default function TugasListView({ basePath, canCreate, title, subtitle, gr
         semester: periode.semester,
       },
     }).then((res) => setTugasList(res.data.data))
+  }
+
+  function handleTeamFilterChange(val) {
+    setTeamFilter(val)
+    setSearchParams(val ? { team_id: val } : {})
   }
 
   useAutoRefresh(load, [search, statusFilter, teamFilter, periode.periode_id, periode.semester])
@@ -101,14 +101,14 @@ export default function TugasListView({ basePath, canCreate, title, subtitle, gr
       <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-4">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input className="input pl-9" placeholder="     Cari judul atau deskripsi..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className="input pl-9" placeholder="Cari judul atau deskripsi..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <select className="input sm:w-56" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="">Semua Status</option>
           {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         {groupByTeam && (
-          <select className="input sm:w-64" value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}>
+          <select className="input sm:w-64" value={teamFilter} onChange={(e) => handleTeamFilterChange(e.target.value)}>
             <option value="">Semua Kategori (Kode Tim)</option>
             {teamOptions.map((t) => (
               <option key={t.id} value={t.id}>{t.kode_tim ? `${t.kode_tim} — ${t.nama_tim}` : t.nama_tim}</option>
@@ -118,9 +118,9 @@ export default function TugasListView({ basePath, canCreate, title, subtitle, gr
       </div>
 
       {!tugasList ? <Loading /> : !tugasList.length ? <EmptyState text="Belum ada tugas pada periode ini." /> : groupByTeam ? (
-        <div className="space-y-8">
-          {groupedTugas.map((group) => (
-            <div key={group.kode_tim}>
+        <div className="space-y-10">
+          {groupedTugas.map((group, i) => (
+            <div key={group.kode_tim} className={i > 0 ? 'pt-8 border-t border-gray-200' : ''}>
               <div className="flex items-center gap-2 mb-3">
                 <span className="inline-flex items-center gap-1.5 bg-brand-50 text-brand-700 text-xs font-semibold px-2.5 py-1 rounded-full">
                   <Layers size={12} />
@@ -180,8 +180,11 @@ function TugasCard({ t, basePath, canManage, onChanged }) {
   const [editOpen, setEditOpen] = useState(false)
   const [form, setForm] = useState({ judul: t.judul, deskripsi: t.deskripsi || '', deadline: (t.deadline || '').slice(0, 10) })
   const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
+
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   function openEdit(e) {
     e.preventDefault()
@@ -206,14 +209,22 @@ function TugasCard({ t, basePath, canManage, onChanged }) {
     }
   }
 
-  async function handleDelete(e) {
+  function openDelete(e) {
     e.preventDefault()
     e.stopPropagation()
-    if (!window.confirm(`Hapus tugas "${t.judul}"? Semua subtugas di dalamnya ikut terhapus. Tindakan ini tidak bisa dibatalkan.`)) return
+    setDeleteError('')
+    setDeleteOpen(true)
+  }
+
+  async function handleDelete() {
     setDeleting(true)
+    setDeleteError('')
     try {
       await api.delete(`/tugas/${t.id}`)
+      setDeleteOpen(false)
       onChanged?.()
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || 'Gagal menghapus tugas.')
     } finally {
       setDeleting(false)
     }
@@ -229,7 +240,7 @@ function TugasCard({ t, basePath, canManage, onChanged }) {
               <button onClick={openEdit} title="Edit tugas" className="p-1.5 rounded-md text-gray-400 hover:text-brand-600 hover:bg-brand-50">
                 <Pencil size={14} />
               </button>
-              <button onClick={handleDelete} disabled={deleting} title="Hapus tugas" className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-60">
+              <button onClick={openDelete} title="Hapus tugas" className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50">
                 <Trash2 size={14} />
               </button>
             </div>
@@ -247,7 +258,7 @@ function TugasCard({ t, basePath, canManage, onChanged }) {
       </Link>
 
       {canManage && (
-        <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Tugas">
+        <Modal open={editOpen} onClose={() => setEditOpen(false)} title={<span className="inline-block -mx-6 -mt-6 mb-2 px-6 py-4 bg-pupr-yellow text-pupr-blue-dark font-semibold rounded-t-xl w-[calc(100%+3rem)]">Edit Tugas</span>}>
           <form onSubmit={handleEdit} className="space-y-4">
             {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
             <div>
@@ -264,6 +275,33 @@ function TugasCard({ t, basePath, canManage, onChanged }) {
             </div>
             <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan Perubahan'}</button>
           </form>
+        </Modal>
+      )}
+
+      {canManage && (
+        <Modal
+          open={deleteOpen}
+          onClose={() => !deleting && setDeleteOpen(false)}
+          title={<span className="inline-block -mx-6 -mt-6 mb-2 px-6 py-4 bg-pupr-yellow text-pupr-blue-dark font-semibold rounded-t-xl w-[calc(100%+3rem)]">Hapus Tugas</span>}
+        >
+          <div className="space-y-4">
+            {deleteError && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{deleteError}</div>}
+            <div className="flex items-start gap-3 bg-red-50 text-red-700 rounded-lg px-4 py-3">
+              <AlertTriangle size={18} className="flex-shrink-0 mt-0.5" />
+              <p className="text-sm">
+                Yakin ingin menghapus tugas <span className="font-semibold">"{t.judul}"</span>?
+                Semua subtugas di dalamnya ikut terhapus. Tindakan ini tidak bisa dibatalkan.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn btn-secondary" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+                Batal
+              </button>
+              <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+                {deleting ? 'Menghapus...' : 'Ya, Hapus Tugas'}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </>

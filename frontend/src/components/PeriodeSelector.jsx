@@ -11,34 +11,34 @@ import { Calendar, Plus } from 'lucide-react'
 //   TIDAK mereset atau memisahkan data -- progres tetap satu baris yang sama sepanjang tahun.
 // - Tombol "+ Periode Baru" hanya muncul untuk Kabalai, untuk membuka tahun anggaran baru.
 export default function PeriodeSelector() {
-  const { periode, periodes, pilihPeriode, pilihSemester, muatUlangPeriodes } = usePeriode()
+  const { periode, periodes, pilihPeriode, pilihPeriodeObjek, pilihSemester, muatUlangPeriodes } = usePeriode()
   const { user } = useAuth()
   const [showForm, setShowForm] = useState(false)
   const [tahunBaru, setTahunBaru] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  async function handleBuatPeriode(e) {
-    e.preventDefault()
-    setError('')
-    const tahun = Number(tahunBaru)
-    if (!tahun || tahun < 2020 || tahun > 2100) {
-      setError('Masukkan tahun yang valid.')
-      return
-    }
-    setSaving(true)
-    try {
-      const baru = await createPeriode(tahun)
-      await muatUlangPeriodes()
-      pilihPeriode(baru.id)
-      setShowForm(false)
-      setTahunBaru('')
-    } catch (err) {
-      setError(err.response?.data?.message || 'Gagal membuat periode baru.')
-    } finally {
-      setSaving(false)
-    }
+async function handleBuatPeriode(e) {
+  e.preventDefault()
+  setError('')
+  const tahun = Number(tahunBaru)
+  if (!tahun || tahun < 2020 || tahun > 2100) {
+    setError('Masukkan tahun yang valid.')
+    return
   }
+  setSaving(true)
+  try {
+    const baru = await createPeriode(tahun)   // response ini sudah punya id, tahun, status
+    await muatUlangPeriodes()                  // refresh daftar dropdown
+    pilihPeriodeObjek(baru)                     // langsung pindah pakai objek yang baru dibuat, bukan cari di state basi
+    setShowForm(false)
+    setTahunBaru('')
+  } catch (err) {
+    setError(err.response?.data?.message || 'Gagal membuat periode baru.')
+  } finally {
+    setSaving(false)
+  }
+}
 
   return (
   <div className="flex flex-wrap items-center gap-3">
@@ -106,34 +106,53 @@ export default function PeriodeSelector() {
     </select>
 
     {user?.role === "kabalai" && (
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setShowForm((v) => !v)}
-          className="
-            h-11
-            px-5
-            rounded-xl
-            border
-            border-gray-300
-            bg-white
-            text-gray-700
-            shadow-sm
-            hover:bg-gray-50
-            hover:border-gray-400
-            transition
-            flex
-            items-center
-            gap-2
-          "
-        >
-          <Plus size={17} />
-          <span>Periode</span>
-        </button>
+  <div className="relative">
+    <button
+      type="button"
+      onClick={() => setShowForm((v) => !v)}
+      className="h-11 px-5 rounded-xl border border-gray-300 bg-white text-gray-700 shadow-sm hover:bg-gray-50 hover:border-gray-400 transition flex items-center gap-2"
+    >
+      <Plus size={17} />
+      <span>Periode</span>
+    </button>
 
-        {/* Form tetap */}
+    {showForm && (
+      <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-lg p-4 z-20">
+        <form onSubmit={handleBuatPeriode} className="space-y-3">
+          <div>
+            <label className="text-sm font-medium text-gray-700 block mb-1">Tahun Anggaran Baru</label>
+            <input
+              type="number"
+              className="input w-full"
+              placeholder="contoh: 2027"
+              value={tahunBaru}
+              onChange={(e) => setTahunBaru(e.target.value)}
+              autoFocus
+            />
+          </div>
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => { setShowForm(false); setError('') }}
+              className="px-3 py-1.5 text-sm rounded-lg text-gray-600 hover:bg-gray-100"
+              disabled={saving}
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
+              disabled={saving}
+            >
+              {saving ? 'Menyimpan...' : 'Buat Periode'}
+            </button>
+          </div>
+        </form>
       </div>
     )}
+  </div>
+)}
   </div>
 )
 }

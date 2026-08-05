@@ -10,7 +10,7 @@ import EmptyState from './EmptyState'
 import SubtugasRow from './SubtugasRow'
 import { formatDate, statusBadgeClass } from '../lib/helpers'
 import { usePeriode } from '../context/PeriodeContext'
-import { ArrowLeft, Plus, MessageSquare, CheckCircle2, XCircle, Send, Copy, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, MessageSquare, CheckCircle2, XCircle, Send, Copy, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 
 // role: 'kabalai' | 'kasubag' | 'katim'
 export default function TugasDetailView({ basePath, role }) {
@@ -37,7 +37,10 @@ export default function TugasDetailView({ basePath, role }) {
   const [editForm, setEditForm] = useState({ judul: '', deskripsi: '', deadline: '' })
   const [editSaving, setEditSaving] = useState(false)
   const [editError, setEditError] = useState('')
+
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   const canCreateSubtugas = role === 'katim' || role === 'kasubag'
   const canVerifikasiTugas = role === 'kasubag'
@@ -132,12 +135,19 @@ export default function TugasDetailView({ basePath, role }) {
     }
   }
 
+  function openDeleteTugas() {
+    setDeleteError('')
+    setDeleteOpen(true)
+  }
+
   async function handleDeleteTugas() {
-    if (!window.confirm(`Hapus tugas "${tugas.judul}"? Semua subtugas di dalamnya ikut terhapus. Tindakan ini tidak bisa dibatalkan.`)) return
     setDeleting(true)
+    setDeleteError('')
     try {
       await api.delete(`/tugas/${id}`)
       navigate(basePath)
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || 'Gagal menghapus tugas.')
     } finally {
       setDeleting(false)
     }
@@ -166,7 +176,7 @@ export default function TugasDetailView({ basePath, role }) {
                 <button onClick={openEditTugas} title="Edit tugas" className="p-2 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50">
                   <Pencil size={16} />
                 </button>
-                <button onClick={handleDeleteTugas} disabled={deleting} title="Hapus tugas" className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-60">
+                <button onClick={openDeleteTugas} title="Hapus tugas" className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50">
                   <Trash2 size={16} />
                 </button>
               </>
@@ -263,6 +273,33 @@ export default function TugasDetailView({ basePath, role }) {
             </div>
             <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={editSaving}>{editSaving ? 'Menyimpan...' : 'Simpan Perubahan'}</button>
           </form>
+        </Modal>
+      )}
+
+      {canEditTugas && (
+        <Modal
+          open={deleteOpen}
+          onClose={() => !deleting && setDeleteOpen(false)}
+          title={<span className="inline-block -mx-6 -mt-6 mb-2 px-6 py-4 bg-pupr-yellow text-pupr-blue-dark font-semibold rounded-t-xl w-[calc(100%+3rem)]">Hapus Tugas</span>}
+        >
+          <div className="space-y-4">
+            {deleteError && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{deleteError}</div>}
+            <div className="flex items-start gap-3 bg-red-50 text-red-700 rounded-lg px-4 py-3">
+              <AlertTriangle size={18} className="flex-shrink-0 mt-0.5" />
+              <p className="text-sm">
+                Yakin ingin menghapus tugas <span className="font-semibold">"{tugas.judul}"</span>?
+                Semua subtugas di dalamnya ikut terhapus. Tindakan ini tidak bisa dibatalkan.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn btn-secondary" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+                Batal
+              </button>
+              <button type="button" className="btn btn-danger" onClick={handleDeleteTugas} disabled={deleting}>
+                {deleting ? 'Menghapus...' : 'Ya, Hapus Tugas'}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
 

@@ -50,6 +50,7 @@ router.get('/users', role('kabalai', 'kasubag'), h(UserController.index));
 router.post('/users', role('kabalai', 'kasubag'), h(UserController.store));
 router.put('/users/:user', role('kabalai', 'kasubag'), h(UserController.update));
 router.delete('/users/:user', role('kabalai', 'kasubag'), h(UserController.destroy));
+router.delete('/users/:user/permanent', role('kabalai', 'kasubag'), h(UserController.destroyPermanent));
 
 // katim & kasubag boleh melihat daftar user (untuk pilih anggota / assign)
 router.get('/users-lite', role('kabalai', 'kasubag', 'katim'), h(UserController.index));
