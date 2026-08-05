@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useEffect, useState } from 'react'
 import api from '../lib/api'
@@ -110,7 +110,10 @@ export default function DashboardLayout({ children }) {
           <div className="hidden lg:flex items-center">
             {SHOW_PERIODE.includes(user?.role) && <PeriodeSelector />}
           </div>
-          <div className="flex items-center gap-4">
+          <Link
+            to={`/${user?.role}/profile`}
+            className="flex items-center gap-4 rounded-lg px-2 py-1 -mx-2 hover:bg-gray-50 transition-colors"
+          >
             <div className="text-right hidden sm:block">
               <p className="text-sm font-medium text-gray-900">{user?.name}</p>
               <p className="text-xs text-gray-500">{ROLE_LABEL[user?.role]} {user?.jabatan ? `· ${user.jabatan}` : ''}</p>
@@ -122,7 +125,7 @@ export default function DashboardLayout({ children }) {
                 {user?.name?.charAt(0)}
               </div>
             )}
-          </div>
+          </Link>
         </header>
         <div className="lg:hidden px-6 pt-4">
           {SHOW_PERIODE.includes(user?.role) && <PeriodeSelector />}

@@ -30,6 +30,8 @@ export default function Dashboard() {
         <p className="text-sm text-gray-500">Ringkasan progres seluruh tim — {periodeLabel(periode)}.</p>
       </div>
 
+        <HistoriSemesterCard periodeId={periode.periode_id} />
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total Tugas" value={ringkasan.total_tugas} icon={ClipboardList} color="brand" />
         <StatCard label="Sedang Berjalan" value={ringkasan.sedang_berjalan} icon={Clock} color="amber" />
@@ -91,7 +93,6 @@ export default function Dashboard() {
           </div>
         )}
       </div>
-      <HistoriSemesterCard periodeId={periode.periode_id} />
     </div>
   )
 }

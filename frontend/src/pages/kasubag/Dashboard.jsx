@@ -31,6 +31,8 @@ export default function Dashboard() {
         <p className="text-sm text-gray-500">Ringkasan progres seluruh tim — {periodeLabel(periode)}.</p>
       </div>
 
+      <HistoriSemesterCard periodeId={periode.periode_id} />
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total Tugas" value={ringkasan.total_tugas} icon={ClipboardList} color="brand" />
         <StatCard label="Sedang Berjalan" value={ringkasan.sedang_berjalan} icon={Clock} color="amber" />
@@ -95,7 +97,7 @@ export default function Dashboard() {
         <h2 className="font-semibold text-gray-900 mb-4">Aktivitas Terbaru</h2>
         {!aktivitas?.length ? <EmptyState /> : (
           <div className="space-y-3">
-            {aktivitas.map((a) => (
+            {aktivitas.slice(0, 5).map((a) => (
               <div key={a.id} className="flex justify-between text-sm">
                 <span className="text-gray-700"><span className="font-medium">{a.user?.name || 'Sistem'}</span> {a.aksi}</span>
                 <span className="text-gray-400 text-xs">{formatDate(a.created_at)}</span>
@@ -105,7 +107,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      <HistoriSemesterCard periodeId={periode.periode_id} />
     </div>
   )
 }

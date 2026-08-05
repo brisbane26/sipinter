@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import api from '../lib/api'
 import { useAutoRefresh } from '../lib/useAutoRefresh'
 import { useAuth } from '../context/AuthContext'
@@ -10,12 +10,13 @@ import EmptyState from './EmptyState'
 import SubtugasRow from './SubtugasRow'
 import { formatDate, statusBadgeClass } from '../lib/helpers'
 import { usePeriode } from '../context/PeriodeContext'
-import { ArrowLeft, Plus, MessageSquare, CheckCircle2, XCircle, Send, Copy } from 'lucide-react'
+import { ArrowLeft, Plus, MessageSquare, CheckCircle2, XCircle, Send, Copy, Pencil, Trash2 } from 'lucide-react'
 
 // role: 'kabalai' | 'kasubag' | 'katim'
 export default function TugasDetailView({ basePath, role }) {
   const { id } = useParams()
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [tugas, setTugas] = useState(null)
   const [users, setUsers] = useState([])
   const [subtugasOpen, setSubtugasOpen] = useState(false)
@@ -32,9 +33,16 @@ export default function TugasDetailView({ basePath, role }) {
   const [duplicating, setDuplicating] = useState(false)
   const [duplicateError, setDuplicateError] = useState('')
 
+  const [editOpen, setEditOpen] = useState(false)
+  const [editForm, setEditForm] = useState({ judul: '', deskripsi: '', deadline: '' })
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
   const canCreateSubtugas = role === 'katim' || role === 'kasubag'
   const canVerifikasiTugas = role === 'kasubag'
   const canDuplicate = role === 'kasubag'
+  const canEditTugas = role === 'kasubag'
   const canComment = user?.role !== 'anggota'
 
   function load() {
@@ -99,6 +107,42 @@ export default function TugasDetailView({ basePath, role }) {
     }
   }
 
+  function openEditTugas() {
+    setEditForm({
+      judul: tugas.judul,
+      deskripsi: tugas.deskripsi || '',
+      deadline: (tugas.deadline || '').slice(0, 10),
+    })
+    setEditError('')
+    setEditOpen(true)
+  }
+
+  async function handleEditTugas(e) {
+    e.preventDefault()
+    setEditSaving(true)
+    setEditError('')
+    try {
+      await api.put(`/tugas/${id}`, editForm)
+      setEditOpen(false)
+      load()
+    } catch (err) {
+      setEditError(err.response?.data?.message || 'Gagal menyimpan perubahan.')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  async function handleDeleteTugas() {
+    if (!window.confirm(`Hapus tugas "${tugas.judul}"? Semua subtugas di dalamnya ikut terhapus. Tindakan ini tidak bisa dibatalkan.`)) return
+    setDeleting(true)
+    try {
+      await api.delete(`/tugas/${id}`)
+      navigate(basePath)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (!tugas) return <Loading />
 
   return (
@@ -116,7 +160,19 @@ export default function TugasDetailView({ basePath, role }) {
             </p>
             <p className="text-xs text-gray-400 mt-1">Periode: Tahun {tugas.periode?.tahun}</p>
           </div>
-          <span className={statusBadgeClass(tugas.status)}>{tugas.status}</span>
+          <div className="flex items-center gap-2">
+            {canEditTugas && (
+              <>
+                <button onClick={openEditTugas} title="Edit tugas" className="p-2 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50">
+                  <Pencil size={16} />
+                </button>
+                <button onClick={handleDeleteTugas} disabled={deleting} title="Hapus tugas" className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-60">
+                  <Trash2 size={16} />
+                </button>
+              </>
+            )}
+            <span className={statusBadgeClass(tugas.status)}>{tugas.status}</span>
+          </div>
         </div>
         {canDuplicate && (
           <button
@@ -159,7 +215,7 @@ export default function TugasDetailView({ basePath, role }) {
       {!tugas.subtugas?.length ? <EmptyState text="Belum ada subtugas." /> : (
         <div className="space-y-3 mb-6">
           {tugas.subtugas.map((s) => (
-            <SubtugasRow key={s.id} subtugas={s} role={role} onChanged={load} />
+            <SubtugasRow key={s.id} subtugas={s} role={role} onChanged={load} users={users} />
           ))}
         </div>
       )}
@@ -188,6 +244,27 @@ export default function TugasDetailView({ basePath, role }) {
           <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={saving}>{saving ? 'Menyimpan...' : 'Tambah Subtugas'}</button>
         </form>
       </Modal>
+
+      {canEditTugas && (
+        <Modal open={editOpen} onClose={() => setEditOpen(false)} title={<span className="inline-block -mx-6 -mt-6 mb-2 px-6 py-4 bg-pupr-yellow text-pupr-blue-dark font-semibold rounded-t-xl w-[calc(100%+3rem)]">Edit Tugas</span>}>
+          <form onSubmit={handleEditTugas} className="space-y-4">
+            {editError && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{editError}</div>}
+            <div>
+              <label className="label">Judul Tugas</label>
+              <input required className="input" value={editForm.judul} onChange={(e) => setEditForm({ ...editForm, judul: e.target.value })} />
+            </div>
+            <div>
+              <label className="label">Deskripsi</label>
+              <textarea className="input" rows={3} value={editForm.deskripsi} onChange={(e) => setEditForm({ ...editForm, deskripsi: e.target.value })} />
+            </div>
+            <div>
+              <label className="label">Deadline (opsional)</label>
+              <input type="date" className="input" value={editForm.deadline} onChange={(e) => setEditForm({ ...editForm, deadline: e.target.value })} />
+            </div>
+            <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={editSaving}>{editSaving ? 'Menyimpan...' : 'Simpan Perubahan'}</button>
+          </form>
+        </Modal>
+      )}
 
       <Modal open={duplicateOpen} onClose={() => setDuplicateOpen(false)} title="Duplikasi Tugas ke Periode Lain">
         <form onSubmit={handleDuplicate} className="space-y-4">
