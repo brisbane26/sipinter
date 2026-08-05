@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import ProgressBar from './ProgressBar'
 import Modal from './Modal'
 import { formatDate, statusBadgeClass } from '../lib/helpers'
-import { Paperclip, CheckCircle2, XCircle, Lock, MessageSquare, Send, Pencil, Trash2 } from 'lucide-react'
+import { Paperclip, CheckCircle2, XCircle, Lock, MessageSquare, Send, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 import api from '../lib/api'
 
 // Baris subtugas yang dipakai di dalam TugasDetailView.
@@ -21,7 +21,10 @@ export default function SubtugasRow({ subtugas, role, onChanged, users = [] }) {
   const [editForm, setEditForm] = useState({ judul: '', deskripsi: '', assigned_to: '', deadline: '' })
   const [editSaving, setEditSaving] = useState(false)
   const [editError, setEditError] = useState('')
+
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   const canVerifikasiKatim = role === 'katim' && subtugas.status === 'Menunggu Verifikasi Katim'
   const canVerifikasiKasubag = role === 'kasubag' && subtugas.status === 'Menunggu Verifikasi Kasubag'
@@ -87,12 +90,20 @@ export default function SubtugasRow({ subtugas, role, onChanged, users = [] }) {
     }
   }
 
+  function openDelete() {
+    setDeleteError('')
+    setDeleteOpen(true)
+  }
+
   async function handleDelete() {
-    if (!window.confirm(`Hapus subtugas "${subtugas.judul}"? Tindakan ini tidak bisa dibatalkan.`)) return
     setDeleting(true)
+    setDeleteError('')
     try {
       await api.delete(`/subtugas/${subtugas.id}`)
+      setDeleteOpen(false)
       onChanged?.()
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || 'Gagal menghapus subtugas.')
     } finally {
       setDeleting(false)
     }
@@ -116,7 +127,7 @@ export default function SubtugasRow({ subtugas, role, onChanged, users = [] }) {
               <button onClick={openEdit} title="Edit subtugas" className="p-1.5 rounded-md text-gray-400 hover:text-brand-600 hover:bg-brand-50">
                 <Pencil size={14} />
               </button>
-              <button onClick={handleDelete} disabled={deleting} title="Hapus subtugas" className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-60">
+              <button onClick={openDelete} title="Hapus subtugas" className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50">
                 <Trash2 size={14} />
               </button>
             </>
@@ -197,7 +208,7 @@ export default function SubtugasRow({ subtugas, role, onChanged, users = [] }) {
       </div>
 
       {canManageSubtugas && (
-        <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Subtugas">
+        <Modal open={editOpen} onClose={() => setEditOpen(false)} title={<span className="inline-block -mx-6 -mt-6 mb-2 px-6 py-4 bg-pupr-yellow text-pupr-blue-dark font-semibold rounded-t-xl w-[calc(100%+3rem)]">Edit Subtugas</span>}>
           <form onSubmit={handleEdit} className="space-y-4">
             {editError && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{editError}</div>}
             <div>
@@ -225,6 +236,33 @@ export default function SubtugasRow({ subtugas, role, onChanged, users = [] }) {
             </div>
             <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={editSaving}>{editSaving ? 'Menyimpan...' : 'Simpan Perubahan'}</button>
           </form>
+        </Modal>
+      )}
+
+      {canManageSubtugas && (
+        <Modal
+          open={deleteOpen}
+          onClose={() => !deleting && setDeleteOpen(false)}
+          title={<span className="inline-block -mx-6 -mt-6 mb-2 px-6 py-4 bg-pupr-yellow text-pupr-blue-dark font-semibold rounded-t-xl w-[calc(100%+3rem)]">Hapus Subtugas</span>}
+        >
+          <div className="space-y-4">
+            {deleteError && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{deleteError}</div>}
+            <div className="flex items-start gap-3 bg-red-50 text-red-700 rounded-lg px-4 py-3">
+              <AlertTriangle size={18} className="flex-shrink-0 mt-0.5" />
+              <p className="text-sm">
+                Yakin ingin menghapus subtugas <span className="font-semibold">"{subtugas.judul}"</span>?
+                Tindakan ini tidak bisa dibatalkan.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn btn-secondary" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+                Batal
+              </button>
+              <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+                {deleting ? 'Menghapus...' : 'Ya, Hapus Subtugas'}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

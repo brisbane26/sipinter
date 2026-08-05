@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { fetchPeriodes } from '../lib/periode'
+import { fetchPeriodes, aktifkanPeriode } from '../lib/periode'
 import { useAuth } from './AuthContext.jsx'
 
 const PeriodeContext = createContext(null)
@@ -53,19 +53,42 @@ export function PeriodeProvider({ children }) {
   }, [user, muatUlangPeriodes])
 
   // ganti periode (tahun) yang dipilih, lewat periode_id
-  function pilihPeriode(periodeId) {
-    const p = periodes.find((x) => x.id === Number(periodeId))
-    if (!p) return
-    setPeriodeState((prev) => ({ ...prev, periode_id: p.id, tahun: p.tahun, status: p.status }))
+async function pilihPeriode(periodeId) {
+  const p = periodes.find((x) => String(x.id) === String(periodeId))  // bandingkan sebagai string, aman dari tipe BIGINT
+  if (!p) return
+
+  setPeriodeState((prev) => ({ ...prev, periode_id: p.id, tahun: p.tahun, status: p.status }))
+
+  // Hanya Kabalai yang boleh mengaktifkan periode (dibatasi juga di backend via role('kabalai')).
+  // Data tahun yang tadinya aktif TIDAK dihapus -- cuma status-nya berubah jadi "ditutup",
+  // semua tugas/subtugas/riwayat progresnya tetap tersimpan utuh dan tetap bisa dibuka lagi kapan pun.
+  if (user?.role === 'kabalai' && p.status !== 'aktif') {
+    try {
+      await aktifkanPeriode(p.id)
+      const data = await muatUlangPeriodes()
+      const refreshed = data.find((x) => String(x.id) === String(p.id))
+      if (refreshed) setPeriodeState((prev) => ({ ...prev, status: refreshed.status }))
+    } catch {
+      // Kalau gagal (mis. bukan kabalai atau jaringan bermasalah), tetap lanjut browsing
+      // periode itu -- cuma status "aktif"-nya yang tidak ikut pindah.
+    }
   }
+}
 
   // ganti filter semester (0 = seluruh tahun, 1, atau 2) untuk periode yang sedang dipilih
   function pilihSemester(semester) {
     setPeriodeState((prev) => ({ ...prev, semester: Number(semester) }))
   }
 
+  // set periode langsung dari objek (dipakai setelah bikin periode baru, supaya tidak
+  // bergantung pada state `periodes` yang mungkin belum ke-update di render yang sama)
+  function pilihPeriodeObjek(p) {
+    if (!p) return
+    setPeriodeState((prev) => ({ ...prev, periode_id: p.id, tahun: p.tahun, status: p.status }))
+  }
+
   return (
-    <PeriodeContext.Provider value={{ periode, periodes, loading, pilihPeriode, pilihSemester, muatUlangPeriodes }}>
+    <PeriodeContext.Provider value={{ periode, periodes, loading, pilihPeriode, pilihPeriodeObjek, pilihSemester, muatUlangPeriodes }}>
       {children}
     </PeriodeContext.Provider>
   )

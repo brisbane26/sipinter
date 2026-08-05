@@ -3,7 +3,7 @@ import api from '../lib/api'
 import Modal from './Modal'
 import Loading from './Loading'
 import EmptyState from './EmptyState'
-import { Plus, Users, Pencil } from 'lucide-react'
+import { Plus, Users, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 
 export default function TeamsView() {
   const [teams, setTeams] = useState(null)
@@ -13,6 +13,10 @@ export default function TeamsView() {
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({ nama_tim: '', kode_tim: '', katim_id: '', anggota_ids: [] })
   const [saving, setSaving] = useState(false)
+
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   function load() { api.get('/teams').then((res) => setTeams(res.data)) }
 
@@ -51,6 +55,26 @@ export default function TeamsView() {
     }
   }
 
+  function openDelete(t) {
+    setDeleteError('')
+    setDeleteTarget(t)
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setDeleteError('')
+    try {
+      await api.delete(`/teams/${deleteTarget.id}`)
+      setDeleteTarget(null)
+      load()
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || 'Gagal menghapus tim.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -70,7 +94,10 @@ export default function TeamsView() {
                   <h3 className="font-semibold text-gray-900">{t.nama_tim} {t.kode_tim && <span className="text-xs text-gray-400 font-normal">({t.kode_tim})</span>}</h3>
                   <p className="text-sm text-gray-500">Katim: {t.katim?.name}</p>
                 </div>
-                <button onClick={() => openEdit(t)} className="text-gray-400 hover:text-gray-600"><Pencil size={16} /></button>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => openEdit(t)} title="Edit tim" className="p-1.5 rounded-md text-gray-400 hover:text-brand-600 hover:bg-brand-50"><Pencil size={16} /></button>
+                  <button onClick={() => openDelete(t)} title="Hapus tim" className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>
+                </div>
               </div>
               <div className="mt-3 flex items-center gap-1 text-xs text-gray-400"><Users size={13} /> {t.members?.length || 0} anggota</div>
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -113,6 +140,31 @@ export default function TeamsView() {
           </div>
           <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={saving}>{saving ? 'Menyimpan...' : editing ? 'Simpan Perubahan' : 'Buat Tim'}</button>
         </form>
+      </Modal>
+
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => !deleting && setDeleteTarget(null)}
+        title={<span className="inline-block -mx-6 -mt-6 mb-2 px-6 py-4 bg-pupr-yellow text-pupr-blue-dark font-semibold rounded-t-xl w-[calc(100%+3rem)]">Hapus Tim</span>}
+      >
+        <div className="space-y-4">
+          {deleteError && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{deleteError}</div>}
+          <div className="flex items-start gap-3 bg-red-50 text-red-700 rounded-lg px-4 py-3">
+            <AlertTriangle size={18} className="flex-shrink-0 mt-0.5" />
+            <p className="text-sm">
+              Yakin ingin menghapus tim <span className="font-semibold">"{deleteTarget?.nama_tim}"</span>?
+              Semua tugas & subtugas milik tim ini (beserta progres, komentar, dan file buktinya) ikut terhapus permanen. Tindakan ini tidak bisa dibatalkan.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" className="btn btn-secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              Batal
+            </button>
+            <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Menghapus...' : 'Ya, Hapus Tim'}
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   )
