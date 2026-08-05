@@ -82,7 +82,7 @@ export default function Dashboard() {
         <h2 className="font-semibold text-gray-900 mb-4">Aktivitas Terbaru</h2>
         {!aktivitas?.length ? <EmptyState /> : (
           <div className="space-y-3">
-            {aktivitas.map((a) => (
+            {aktivitas.slice(0, 5).map((a) => (
               <div key={a.id} className="flex justify-between text-sm">
                 <span className="text-gray-700"><span className="font-medium">{a.user?.name || 'Sistem'}</span> {a.aksi}</span>
                 <span className="text-gray-400 text-xs">{formatDate(a.created_at)}</span>

@@ -100,7 +100,7 @@ export async function historiSemester(req, res) {
     }
 
     let rataRata = 0;
-    let jumlahUpdateDiSemesterIni = 0;
+    let subtugasSelesai = 0;
 
     if (subtugasIds.length > 0) {
       // Progres tiap subtugas per akhir semester ybs = update terakhir yang dikirim
@@ -113,25 +113,29 @@ export async function historiSemester(req, res) {
         [subtugasIds, akhir]
       );
 
-      if (latestPerSubtugas.length > 0) {
-        const total = latestPerSubtugas.reduce((s, r) => s + Number(r.persentase), 0);
-        rataRata = Math.round((total / latestPerSubtugas.length) * 10) / 10;
-      }
-
-      const { rows: countRows } = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM subtugas_updates
-         WHERE subtugas_id = ANY($1::bigint[]) AND created_at BETWEEN $2 AND $3`,
-        [subtugasIds, awal, akhir]
+      // Rata-rata dihitung atas SEMUA subtugas di periode ini (bukan cuma yang sudah
+      // punya riwayat) -- subtugas yang belum pernah di-update dianggap 0%.
+      const progressMap = new Map(
+        latestPerSubtugas.map((r) => [r.subtugas_id, Number(r.persentase)])
       );
-      jumlahUpdateDiSemesterIni = countRows[0].total;
+      const total = subtugasIds.reduce((s, id) => s + (progressMap.get(id) || 0), 0);
+      rataRata = Math.round((total / subtugasIds.length) * 10) / 10;
+
+      // Dihitung di LEVEL SUBTUGAS (bukan tugas), supaya tugas yang subtugasnya
+      // sebagian sudah selesai tetap kelihatan progresnya, tanpa perlu menunggu
+      // SELURUH subtugas dalam 1 tugas itu rampung dulu baru terhitung.
+      // "Selesai" di sini = progres sudah mencapai 100% pada saat itu, terlepas
+      // dari status verifikasi (supaya tetap tercatat walau masih antre verifikasi).
+      subtugasSelesai = subtugasIds.filter((id) => (progressMap.get(id) || 0) >= 100).length;
     }
 
     hasil.push({
       semester,
       label: Semester.label(periode.tahun, semester),
       rata_rata_progress_akhir_semester: rataRata,
-      jumlah_update_progres: jumlahUpdateDiSemesterIni,
       jumlah_tugas: tugasIds.length,
+      jumlah_subtugas: subtugasIds.length,
+      subtugas_selesai: subtugasSelesai,
     });
   }
 

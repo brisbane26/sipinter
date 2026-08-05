@@ -90,7 +90,9 @@ export default function NotificationsList() {
             <p className="text-sm text-gray-600 whitespace-pre-line">{detail.isi || 'Tidak ada keterangan tambahan.'}</p>
             <div className="flex gap-2 pt-2">
               {detail.link && (
-                <button onClick={handleGoToLink} className="btn btn-primary text-sm flex-1">Buka Halaman Terkait</button>
+                <button onClick={handleGoToLink} className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 text-sm flex-1">
+                  Buka Halaman Terkait
+                </button>
               )}
               <button onClick={() => setDetail(null)} className="btn btn-secondary text-sm">
                 <X size={15} /> Tutup

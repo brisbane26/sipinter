@@ -185,7 +185,7 @@ export default function TugasDetailView({ basePath, role }) {
             <label className="label">Deadline (opsional)</label>
             <input type="date" className="input" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
           </div>
-          <button className="btn btn-primary w-full" disabled={saving}>{saving ? 'Menyimpan...' : 'Tambah Subtugas'}</button>
+          <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={saving}>{saving ? 'Menyimpan...' : 'Tambah Subtugas'}</button>
         </form>
       </Modal>
 
@@ -211,7 +211,7 @@ export default function TugasDetailView({ basePath, role }) {
             <input type="checkbox" checked={salinSubtugas} onChange={(e) => setSalinSubtugas(e.target.checked)} />
             Salin juga daftar subtugas (tanpa progres/riwayat lama)
           </label>
-          <button className="btn btn-primary w-full" disabled={duplicating}>
+          <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={duplicating}>
             {duplicating ? 'Menduplikasi...' : 'Duplikasi Tugas'}
           </button>
         </form>

@@ -147,7 +147,7 @@ export default function ProjectDetailView({ basePath, canAddSubtask, canApproveP
         </div>
         <form onSubmit={handleComment} className="flex gap-2">
           <input className="input flex-1" placeholder="Tulis komentar..." value={comment} onChange={(e) => setComment(e.target.value)} />
-          <button className="btn btn-primary"><Send size={16} /></button>
+          <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60"><Send size={16} /></button>
         </form>
       </div>
 
@@ -178,7 +178,7 @@ export default function ProjectDetailView({ basePath, canAddSubtask, canApproveP
               <input type="date" required className="input" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
             </div>
           </div>
-          <button className="btn btn-primary w-full" disabled={saving}>{saving ? 'Menyimpan...' : 'Tambah Subtask'}</button>
+          <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={saving}>{saving ? 'Menyimpan...' : 'Tambah Subtask'}</button>
         </form>
       </Modal>
     </div>
