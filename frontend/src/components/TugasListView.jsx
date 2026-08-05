@@ -8,7 +8,7 @@ import ProgressBar from './ProgressBar'
 import Loading from './Loading'
 import EmptyState from './EmptyState'
 import { formatDate, statusBadgeClass } from '../lib/helpers'
-import { Plus, Search, Layers } from 'lucide-react'
+import { Plus, Search, Layers, Pencil, Trash2 } from 'lucide-react'
 
 const STATUSES = ['Belum Dimulai', 'Sedang Berjalan', 'Menunggu Verifikasi', 'Selesai', 'Terlambat']
 const TANPA_KODE = '__tanpa_kode__'
@@ -33,6 +33,8 @@ function groupTugasByKodeTim(tugasList) {
   })
 }
 
+// canCreate menandakan role kasubag -- kasubag yang sama juga satu-satunya
+// yang boleh mengedit/menghapus tugas, jadi dipakai ulang sebagai canManage.
 export default function TugasListView({ basePath, canCreate, title, subtitle, groupByTeam }) {
   const { periode } = usePeriode()
   const [tugasList, setTugasList] = useState(null)
@@ -128,14 +130,14 @@ export default function TugasListView({ basePath, canCreate, title, subtitle, gr
                 <span className="text-xs text-gray-400">({group.items.length} tugas)</span>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
-                {group.items.map((t) => <TugasCard key={t.id} t={t} basePath={basePath} />)}
+                {group.items.map((t) => <TugasCard key={t.id} t={t} basePath={basePath} canManage={canCreate} onChanged={load} />)}
               </div>
             </div>
           ))}
         </div>
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
-          {tugasList.map((t) => <TugasCard key={t.id} t={t} basePath={basePath} />)}
+          {tugasList.map((t) => <TugasCard key={t.id} t={t} basePath={basePath} canManage={canCreate} onChanged={load} />)}
         </div>
       )}
 
@@ -174,21 +176,96 @@ export default function TugasListView({ basePath, canCreate, title, subtitle, gr
   )
 }
 
-function TugasCard({ t, basePath }) {
+function TugasCard({ t, basePath, canManage, onChanged }) {
+  const [editOpen, setEditOpen] = useState(false)
+  const [form, setForm] = useState({ judul: t.judul, deskripsi: t.deskripsi || '', deadline: (t.deadline || '').slice(0, 10) })
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState('')
+
+  function openEdit(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    setForm({ judul: t.judul, deskripsi: t.deskripsi || '', deadline: (t.deadline || '').slice(0, 10) })
+    setError('')
+    setEditOpen(true)
+  }
+
+  async function handleEdit(e) {
+    e.preventDefault()
+    setSaving(true)
+    setError('')
+    try {
+      await api.put(`/tugas/${t.id}`, form)
+      setEditOpen(false)
+      onChanged?.()
+    } catch (err) {
+      setError(err.response?.data?.message || 'Gagal menyimpan perubahan.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!window.confirm(`Hapus tugas "${t.judul}"? Semua subtugas di dalamnya ikut terhapus. Tindakan ini tidak bisa dibatalkan.`)) return
+    setDeleting(true)
+    try {
+      await api.delete(`/tugas/${t.id}`)
+      onChanged?.()
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
-    <Link to={`${basePath}/${t.id}`} className="card p-5 hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="font-semibold text-gray-900">{t.judul}</h3>
-      </div>
-      <p className="text-sm text-gray-500 mt-1">Tim: {t.team?.nama_tim} · {t.subtugas_count} subtugas</p>
-      <div className="mt-3">
-        <div className="flex justify-between text-xs text-gray-500 mb-1"><span>Progress</span><span>{t.progress}%</span></div>
-        <ProgressBar value={t.progress} />
-      </div>
-      <div className="flex items-center justify-between mt-3">
-        <span className={statusBadgeClass(t.status)}>{t.status}</span>
-        {t.deadline && <span className="text-xs text-gray-400">Deadline: {formatDate(t.deadline)}</span>}
-      </div>
-    </Link>
+    <>
+      <Link to={`${basePath}/${t.id}`} className="card p-5 hover:shadow-md transition-shadow relative">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="font-semibold text-gray-900 pr-14">{t.judul}</h3>
+          {canManage && (
+            <div className="absolute top-4 right-4 flex items-center gap-1">
+              <button onClick={openEdit} title="Edit tugas" className="p-1.5 rounded-md text-gray-400 hover:text-brand-600 hover:bg-brand-50">
+                <Pencil size={14} />
+              </button>
+              <button onClick={handleDelete} disabled={deleting} title="Hapus tugas" className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-60">
+                <Trash2 size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+        <p className="text-sm text-gray-500 mt-1">Tim: {t.team?.nama_tim} · {t.subtugas_count} subtugas</p>
+        <div className="mt-3">
+          <div className="flex justify-between text-xs text-gray-500 mb-1"><span>Progress</span><span>{t.progress}%</span></div>
+          <ProgressBar value={t.progress} />
+        </div>
+        <div className="flex items-center justify-between mt-3">
+          <span className={statusBadgeClass(t.status)}>{t.status}</span>
+          {t.deadline && <span className="text-xs text-gray-400">Deadline: {formatDate(t.deadline)}</span>}
+        </div>
+      </Link>
+
+      {canManage && (
+        <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Tugas">
+          <form onSubmit={handleEdit} className="space-y-4">
+            {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
+            <div>
+              <label className="label">Judul Tugas</label>
+              <input required className="input" value={form.judul} onChange={(e) => setForm({ ...form, judul: e.target.value })} />
+            </div>
+            <div>
+              <label className="label">Deskripsi</label>
+              <textarea className="input" rows={3} value={form.deskripsi} onChange={(e) => setForm({ ...form, deskripsi: e.target.value })} />
+            </div>
+            <div>
+              <label className="label">Deadline (opsional)</label>
+              <input type="date" className="input" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
+            </div>
+            <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan Perubahan'}</button>
+          </form>
+        </Modal>
+      )}
+    </>
   )
 }

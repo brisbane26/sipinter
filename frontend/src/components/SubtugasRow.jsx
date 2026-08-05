@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ProgressBar from './ProgressBar'
+import Modal from './Modal'
 import { formatDate, statusBadgeClass } from '../lib/helpers'
-import { Paperclip, CheckCircle2, XCircle, Lock, MessageSquare, Send } from 'lucide-react'
+import { Paperclip, CheckCircle2, XCircle, Lock, MessageSquare, Send, Pencil, Trash2 } from 'lucide-react'
 import api from '../lib/api'
 
 // Baris subtugas yang dipakai di dalam TugasDetailView.
-// role menentukan tombol verifikasi apa yang muncul.
-export default function SubtugasRow({ subtugas, role, onChanged }) {
+// role menentukan tombol verifikasi & edit/hapus apa yang muncul.
+// users = daftar anggota tim (untuk dropdown assign saat edit).
+export default function SubtugasRow({ subtugas, role, onChanged, users = [] }) {
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [comments, setComments] = useState([])
@@ -15,8 +17,15 @@ export default function SubtugasRow({ subtugas, role, onChanged }) {
   const [sendingComment, setSendingComment] = useState(false)
   const lastUpdate = subtugas.updates?.[0]
 
+  const [editOpen, setEditOpen] = useState(false)
+  const [editForm, setEditForm] = useState({ judul: '', deskripsi: '', assigned_to: '', deadline: '' })
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
   const canVerifikasiKatim = role === 'katim' && subtugas.status === 'Menunggu Verifikasi Katim'
   const canVerifikasiKasubag = role === 'kasubag' && subtugas.status === 'Menunggu Verifikasi Kasubag'
+  const canManageSubtugas = role === 'katim' || role === 'kasubag'
 
   // Catatan di sini khusus untuk subtugas ini saja (subtugas_id), bukan catatan
   // umum tugas (yang tampil di bagian "Catatan / Diskusi" pada TugasDetailView).
@@ -52,6 +61,43 @@ export default function SubtugasRow({ subtugas, role, onChanged }) {
     }
   }
 
+  function openEdit() {
+    setEditForm({
+      judul: subtugas.judul,
+      deskripsi: subtugas.deskripsi || '',
+      assigned_to: subtugas.assigned_to || subtugas.assignee?.id || '',
+      deadline: (subtugas.deadline || '').slice(0, 10),
+    })
+    setEditError('')
+    setEditOpen(true)
+  }
+
+  async function handleEdit(e) {
+    e.preventDefault()
+    setEditSaving(true)
+    setEditError('')
+    try {
+      await api.put(`/subtugas/${subtugas.id}`, editForm)
+      setEditOpen(false)
+      onChanged?.()
+    } catch (err) {
+      setEditError(err.response?.data?.message || 'Gagal menyimpan perubahan.')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm(`Hapus subtugas "${subtugas.judul}"? Tindakan ini tidak bisa dibatalkan.`)) return
+    setDeleting(true)
+    try {
+      await api.delete(`/subtugas/${subtugas.id}`)
+      onChanged?.()
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div className="card p-4">
       <div className="flex items-start justify-between gap-2 flex-wrap">
@@ -64,7 +110,19 @@ export default function SubtugasRow({ subtugas, role, onChanged }) {
             {subtugas.assignee?.name}{subtugas.deadline ? ` · Deadline ${formatDate(subtugas.deadline)}` : ''}
           </p>
         </div>
-        <span className={statusBadgeClass(subtugas.status)}>{subtugas.status}</span>
+        <div className="flex items-center gap-1.5">
+          {canManageSubtugas && (
+            <>
+              <button onClick={openEdit} title="Edit subtugas" className="p-1.5 rounded-md text-gray-400 hover:text-brand-600 hover:bg-brand-50">
+                <Pencil size={14} />
+              </button>
+              <button onClick={handleDelete} disabled={deleting} title="Hapus subtugas" className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-60">
+                <Trash2 size={14} />
+              </button>
+            </>
+          )}
+          <span className={statusBadgeClass(subtugas.status)}>{subtugas.status}</span>
+        </div>
       </div>
 
       <div className="mt-2"><ProgressBar value={subtugas.progress} /></div>
@@ -137,6 +195,38 @@ export default function SubtugasRow({ subtugas, role, onChanged }) {
           </button>
         </form>
       </div>
+
+      {canManageSubtugas && (
+        <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Subtugas">
+          <form onSubmit={handleEdit} className="space-y-4">
+            {editError && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{editError}</div>}
+            <div>
+              <label className="label">Judul Subtugas</label>
+              <input required className="input" value={editForm.judul} onChange={(e) => setEditForm({ ...editForm, judul: e.target.value })} />
+            </div>
+            <div>
+              <label className="label">Deskripsi</label>
+              <textarea className="input" rows={2} value={editForm.deskripsi} onChange={(e) => setEditForm({ ...editForm, deskripsi: e.target.value })} />
+            </div>
+            <div>
+              <label className="label">Assign ke Anggota</label>
+              <select required className="input" value={editForm.assigned_to} onChange={(e) => setEditForm({ ...editForm, assigned_to: e.target.value })}>
+                <option value="">Pilih anggota...</option>
+                {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                {/* jaga-jaga kalau assignee saat ini tidak ada di daftar users yang diteruskan */}
+                {editForm.assigned_to && !users.some((u) => String(u.id) === String(editForm.assigned_to)) && subtugas.assignee && (
+                  <option value={subtugas.assignee.id}>{subtugas.assignee.name}</option>
+                )}
+              </select>
+            </div>
+            <div>
+              <label className="label">Deadline (opsional)</label>
+              <input type="date" className="input" value={editForm.deadline} onChange={(e) => setEditForm({ ...editForm, deadline: e.target.value })} />
+            </div>
+            <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={editSaving}>{editSaving ? 'Menyimpan...' : 'Simpan Perubahan'}</button>
+          </form>
+        </Modal>
+      )}
     </div>
   )
 }
