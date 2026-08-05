@@ -63,13 +63,13 @@ export default function UserManagementView() {
           <h1 className="text-xl font-semibold text-gray-900">Manajemen User</h1>
           <p className="text-sm text-gray-500">Tambah, ubah, atau nonaktifkan akun pegawai.</p>
         </div>
-        <button onClick={openCreate} className="btn btn-primary"><Plus size={16} /> Tambah User</button>
+        <button onClick={openCreate} className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60"><Plus size={16} /> Tambah User</button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input className="input pl-9" placeholder="Cari nama, NIP, email..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className="input pl-9" placeholder="     Cari nama, NIP, email..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <select className="input sm:w-48" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
           <option value="">Semua Role</option>
@@ -114,7 +114,7 @@ export default function UserManagementView() {
         </div>
       )}
 
-      <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Edit User' : 'Tambah User'}>
+      <Modal open={open} onClose={() => setOpen(false)} title={<span className="inline-block -mx-6 -mt-6 mb-2 px-6 py-4 bg-pupr-yellow text-pupr-blue-dark font-semibold rounded-t-xl w-[calc(100%+3rem)]">{editing ? 'Edit User' : 'Tambah User'}</span>}>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
           <div>
@@ -148,7 +148,7 @@ export default function UserManagementView() {
             <label className="label">Password {editing && '(kosongkan jika tidak diubah)'}</label>
             <input type="password" className="input" required={!editing} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
           </div>
-          <button className="btn btn-primary w-full" disabled={saving}>{saving ? 'Menyimpan...' : editing ? 'Simpan Perubahan' : 'Tambah User'}</button>
+          <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={saving}>{saving ? 'Menyimpan...' : editing ? 'Simpan Perubahan' : 'Tambah User'}</button>
         </form>
       </Modal>
     </div>

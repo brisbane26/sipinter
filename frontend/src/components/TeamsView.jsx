@@ -58,7 +58,7 @@ export default function TeamsView() {
           <h1 className="text-xl font-semibold text-gray-900">Manajemen Tim</h1>
           <p className="text-sm text-gray-500">Kelola tim, kepala tim, dan anggotanya.</p>
         </div>
-        <button onClick={openCreate} className="btn btn-primary"><Plus size={16} /> Buat Tim</button>
+        <button onClick={openCreate} className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60"><Plus size={16} /> Buat Tim</button>
       </div>
 
       {!teams ? <Loading /> : !teams.length ? <EmptyState text="Belum ada tim." /> : (
@@ -81,7 +81,7 @@ export default function TeamsView() {
         </div>
       )}
 
-      <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Edit Tim' : 'Buat Tim Baru'} wide>
+      <Modal open={open} onClose={() => setOpen(false)} title={<span className="inline-block -mx-6 -mt-6 mb-2 px-6 py-4 bg-pupr-yellow text-pupr-blue-dark font-semibold rounded-t-xl w-[calc(100%+3rem)]">{editing ? 'Edit Tim' : 'Buat Tim Baru'}</span>} wide>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-2">
@@ -111,7 +111,7 @@ export default function TeamsView() {
               ))}
             </div>
           </div>
-          <button className="btn btn-primary w-full" disabled={saving}>{saving ? 'Menyimpan...' : editing ? 'Simpan Perubahan' : 'Buat Tim'}</button>
+          <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={saving}>{saving ? 'Menyimpan...' : editing ? 'Simpan Perubahan' : 'Buat Tim'}</button>
         </form>
       </Modal>
     </div>

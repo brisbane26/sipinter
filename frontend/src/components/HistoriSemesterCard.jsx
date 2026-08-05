@@ -36,7 +36,7 @@ export default function HistoriSemesterCard({ periodeId }) {
               </div>
               <ProgressBar value={h.rata_rata_progress_akhir_semester} />
               <p className="text-xs text-gray-400 mt-2">
-                {h.jumlah_tugas} tugas · {h.jumlah_update_progres} update progres pada semester ini
+                {h.subtugas_selesai} / {h.jumlah_subtugas} subtugas selesai pada akhir semester ini · {h.jumlah_tugas} tugas
               </p>
             </div>
           ))}

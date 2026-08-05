@@ -93,13 +93,13 @@ export default function TugasListView({ basePath, canCreate, title, subtitle, gr
           <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
           <p className="text-sm text-gray-500">{subtitle}</p>
         </div>
-        {canCreate && <button onClick={() => setOpen(true)} className="btn btn-primary"><Plus size={16} /> Buat Tugas</button>}
+        {canCreate && <button onClick={() => setOpen(true)} className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60"><Plus size={16} /> Buat Tugas</button>}
       </div>
 
       <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-4">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input className="input pl-9" placeholder="Cari judul atau deskripsi..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className="input pl-9" placeholder="     Cari judul atau deskripsi..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <select className="input sm:w-56" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="">Semua Status</option>
@@ -140,7 +140,7 @@ export default function TugasListView({ basePath, canCreate, title, subtitle, gr
       )}
 
       {canCreate && (
-        <Modal open={open} onClose={() => setOpen(false)} title="Buat Tugas Baru" wide>
+        <Modal   open={open} onClose={() => setOpen(false)} title={ <span className="inline-block -mx-6 -mt-6 mb-2 px-6 py-4 bg-pupr-yellow text-pupr-blue-dark font-semibold rounded-t-xl w-[calc(100%+3rem)]"> Buat Tugas Baru </span>} wide>
           <form onSubmit={handleCreate} className="space-y-4">
             {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
             <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
@@ -166,7 +166,7 @@ export default function TugasListView({ basePath, canCreate, title, subtitle, gr
                 {teams.map((t) => <option key={t.id} value={t.id}>{t.nama_tim} {t.kode_tim ? `(${t.kode_tim})` : ''} — Katim: {t.katim?.name}</option>)}
               </select>
             </div>
-            <button className="btn btn-primary w-full" disabled={saving}>{saving ? 'Menyimpan...' : 'Buat Tugas'}</button>
+            <button className="w-full py-2.5 rounded-lg font-medium bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60" disabled={saving}>{saving ? 'Menyimpan...' : 'Buat Tugas'}</button>
           </form>
         </Modal>
       )}

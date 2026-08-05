@@ -123,7 +123,7 @@ export default function SubtugasDetail() {
                 <input type="file" multiple hidden accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.zip" onChange={(e) => setFiles(Array.from(e.target.files))} />
               </label>
             </div>
-            <button className="btn btn-primary w-full" disabled={saving}>{saving ? 'Menyimpan...' : 'Kirim Update'}</button>
+            <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={saving}>{saving ? 'Menyimpan...' : 'Kirim Update'}</button>
           </form>
         )}
       </div>

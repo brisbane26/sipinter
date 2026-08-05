@@ -190,7 +190,7 @@ export default function Profile() {
             <div className="mt-8 flex justify-end">
               <button
                 type="submit"
-                className="btn btn-primary px-8"
+                className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 px-8"
                 disabled={saving}
               >
                 {saving ? 'Menyimpan...' : 'Simpan Perubahan'}

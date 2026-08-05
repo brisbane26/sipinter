@@ -112,7 +112,7 @@ export default function TaskDetail() {
                 <input type="file" multiple hidden accept="image/*,.pdf,.doc,.docx,.xlsx" onChange={(e) => setFiles(Array.from(e.target.files))} />
               </label>
             </div>
-            <button className="btn btn-primary w-full" disabled={saving}>{saving ? 'Menyimpan...' : 'Kirim Update'}</button>
+            <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60 w-full" disabled={saving}>{saving ? 'Menyimpan...' : 'Kirim Update'}</button>
           </form>
         )}
       </div>
@@ -155,7 +155,7 @@ export default function TaskDetail() {
         </div>
         <form onSubmit={handleComment} className="flex gap-2">
           <input className="input flex-1" placeholder="Tulis komentar..." value={comment} onChange={(e) => setComment(e.target.value)} />
-          <button className="btn btn-primary"><Send size={16} /></button>
+          <button className="btn bg-pupr-blue-dark hover:bg-pupr-blue text-white transition-colors disabled:opacity-60"><Send size={16} /></button>
         </form>
       </div>
     </div>
