@@ -83,7 +83,10 @@ export async function historiSemester(req, res) {
   const hasil = [];
 
   for (const semester of [1, 2]) {
-    const [bulanAwal, bulanAkhir] = Semester.monthRange(semester);
+    // PENTING: pakai rentang tanggal PENUH (termasuk tahun periode ini), bukan cuma
+    // EXTRACT(MONTH ..) -- filter berbasis bulan saja tanpa tahun bisa salah ambil/lewatkan
+    // baris subtugas_updates, jadi gauge kelihatan tidak berubah walau ada update baru.
+    const [awalSemester, akhirSemester] = Semester.rentang(periode.tahun, semester);
 
     const { rows: tugasIdRows } = await pool.query(`SELECT id FROM tugas WHERE periode_id = $1`, [
       periode.id,
@@ -109,9 +112,9 @@ export async function historiSemester(req, res) {
         `SELECT DISTINCT ON (subtugas_id) subtugas_id, persentase
          FROM subtugas_updates
          WHERE subtugas_id = ANY($1::bigint[])
-           AND EXTRACT(MONTH FROM created_at) BETWEEN $2 AND $3
+           AND created_at BETWEEN $2 AND $3
          ORDER BY subtugas_id, created_at DESC`,
-        [subtugasIds, bulanAwal, bulanAkhir]
+        [subtugasIds, awalSemester, akhirSemester]
       );
 
       // Rata-rata dihitung atas SEMUA subtugas di periode ini (bukan cuma yang sudah
