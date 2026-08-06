@@ -3,8 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import multer from 'multer';
-
 import apiRoutes from './routes/api.js';
+import { hapusNotifikasiKedaluwarsa } from './utils/notificationCleanup.js';
 
 dotenv.config();
 
@@ -53,4 +53,10 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
   console.log(`Server berjalan di http://localhost:${PORT}`);
+
+  // Bersihkan notifikasi >30 hari sekali saat server nyala, lalu ulangi tiap 24 jam.
+  hapusNotifikasiKedaluwarsa().catch((err) => console.error('[cleanup] gagal:', err));
+  setInterval(() => {
+    hapusNotifikasiKedaluwarsa().catch((err) => console.error('[cleanup] gagal:', err));
+  }, 24 * 60 * 60 * 1000);
 });

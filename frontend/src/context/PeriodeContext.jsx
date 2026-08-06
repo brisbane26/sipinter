@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { fetchPeriodes, aktifkanPeriode } from '../lib/periode'
+import { fetchPeriodes, hapusPeriode as hapusPeriodeApi } from '../lib/periode'
 import { useAuth } from './AuthContext.jsx'
 
 const PeriodeContext = createContext(null)
@@ -52,43 +52,43 @@ export function PeriodeProvider({ children }) {
     return () => { aktif = false }
   }, [user, muatUlangPeriodes])
 
-  // ganti periode (tahun) yang dipilih, lewat periode_id
-async function pilihPeriode(periodeId) {
-  const p = periodes.find((x) => String(x.id) === String(periodeId))  // bandingkan sebagai string, aman dari tipe BIGINT
-  if (!p) return
-
-  setPeriodeState((prev) => ({ ...prev, periode_id: p.id, tahun: p.tahun, status: p.status }))
-
-  // Hanya Kabalai yang boleh mengaktifkan periode (dibatasi juga di backend via role('kabalai')).
-  // Data tahun yang tadinya aktif TIDAK dihapus -- cuma status-nya berubah jadi "ditutup",
-  // semua tugas/subtugas/riwayat progresnya tetap tersimpan utuh dan tetap bisa dibuka lagi kapan pun.
-  if (user?.role === 'kabalai' && p.status !== 'aktif') {
-    try {
-      await aktifkanPeriode(p.id)
-      const data = await muatUlangPeriodes()
-      const refreshed = data.find((x) => String(x.id) === String(p.id))
-      if (refreshed) setPeriodeState((prev) => ({ ...prev, status: refreshed.status }))
-    } catch {
-      // Kalau gagal (mis. bukan kabalai atau jaringan bermasalah), tetap lanjut browsing
-      // periode itu -- cuma status "aktif"-nya yang tidak ikut pindah.
-    }
+  // ganti periode (tahun) yang dipilih, lewat periode_id -- cari di state `periodes` yang ada
+  function pilihPeriode(periodeId) {
+    const p = periodes.find((x) => x.id === Number(periodeId))
+    if (!p) return
+    setPeriodeState((prev) => ({ ...prev, periode_id: p.id, tahun: p.tahun, status: p.status }))
   }
-}
+
+  // sama seperti pilihPeriode, tapi langsung terima objek periode (mis. hasil createPeriode),
+  // supaya tidak perlu menunggu state `periodes` selesai di-refresh dulu sebelum bisa pindah.
+  function pilihPeriodeObjek(p) {
+    if (!p) return
+    setPeriodeState((prev) => ({ ...prev, periode_id: p.id, tahun: p.tahun, status: p.status }))
+  }
 
   // ganti filter semester (0 = seluruh tahun, 1, atau 2) untuk periode yang sedang dipilih
   function pilihSemester(semester) {
     setPeriodeState((prev) => ({ ...prev, semester: Number(semester) }))
   }
 
-  // set periode langsung dari objek (dipakai setelah bikin periode baru, supaya tidak
-  // bergantung pada state `periodes` yang mungkin belum ke-update di render yang sama)
-  function pilihPeriodeObjek(p) {
-    if (!p) return
-    setPeriodeState((prev) => ({ ...prev, periode_id: p.id, tahun: p.tahun, status: p.status }))
+  // Hapus periode (tahun anggaran). Backend menolak kalau periode ini sedang aktif atau
+  // masih punya tugas -- errornya dilempar balik supaya UI pemanggil bisa menampilkannya.
+  async function hapusPeriode(periodeId) {
+    await hapusPeriodeApi(periodeId)
+    const data = await muatUlangPeriodes()
+    // kalau yang dihapus adalah periode yang lagi dipilih, pindah ke periode aktif/terbaru lain
+    if (periode.periode_id === Number(periodeId)) {
+      const pengganti = data.find((p) => p.status === 'aktif') || data[0]
+      if (pengganti) {
+        setPeriodeState((prev) => ({ ...prev, periode_id: pengganti.id, tahun: pengganti.tahun, status: pengganti.status }))
+      } else {
+        setPeriodeState({ periode_id: null, tahun: null, semester: 0, status: null })
+      }
+    }
   }
 
   return (
-    <PeriodeContext.Provider value={{ periode, periodes, loading, pilihPeriode, pilihPeriodeObjek, pilihSemester, muatUlangPeriodes }}>
+    <PeriodeContext.Provider value={{ periode, periodes, loading, pilihPeriode, pilihPeriodeObjek, pilihSemester, muatUlangPeriodes, hapusPeriode }}>
       {children}
     </PeriodeContext.Provider>
   )

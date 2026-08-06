@@ -20,7 +20,7 @@ export async function index(req, res) {
     conditions.push('1=0');
   }
 
-  if (semester === 1 || semester === 2) {
+if (semester === 1 || semester === 2) {
     const tahun = await Semester.periodeTahun(periodeId);
     if (tahun) {
       const [awal, akhir] = Semester.rentang(tahun, semester);

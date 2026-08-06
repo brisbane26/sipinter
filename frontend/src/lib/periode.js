@@ -43,3 +43,8 @@ export async function fetchHistoriSemester(periodeId) {
   const res = await api.get(`/periodes/${periodeId}/histori-semester`)
   return res.data
 }
+
+export async function hapusPeriode(periodeId) {
+  const res = await api.delete(`/periodes/${periodeId}`)
+  return res.data
+}

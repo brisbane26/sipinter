@@ -20,18 +20,15 @@ export async function index(req, res) {
     conditions.push('1=0');
   }
 
-  if (semester === 1 || semester === 2) {
-    const tahunPeriode = await Semester.periodeTahun(periodeId);
-    if (tahunPeriode) {
-      const [awal, akhir] = Semester.rentang(tahunPeriode, semester);
-      params.push(awal, akhir);
-      const i1 = params.length - 1;
-      const i2 = params.length;
-      conditions.push(`(t.created_at BETWEEN $${i1} AND $${i2} OR EXISTS (
-        SELECT 1 FROM subtugas s2 JOIN subtugas_updates su2 ON su2.subtugas_id = s2.id
-        WHERE s2.tugas_id = t.id AND su2.created_at BETWEEN $${i1} AND $${i2}
-      ))`);
-    }
+if (semester === 1 || semester === 2) {
+    const [bulanAwal, bulanAkhir] = Semester.monthRange(semester);
+    params.push(bulanAwal, bulanAkhir);
+    const i1 = params.length - 1;
+    const i2 = params.length;
+    conditions.push(`(EXTRACT(MONTH FROM t.created_at) BETWEEN $${i1} AND $${i2} OR EXISTS (
+      SELECT 1 FROM subtugas s2 JOIN subtugas_updates su2 ON su2.subtugas_id = s2.id
+      WHERE s2.tugas_id = t.id AND EXTRACT(MONTH FROM su2.created_at) BETWEEN $${i1} AND $${i2}
+    ))`);
   }
 
   if (user.role === 'katim') {
