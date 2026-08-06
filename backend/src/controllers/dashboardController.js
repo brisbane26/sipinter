@@ -3,15 +3,18 @@ import * as Semester from '../utils/semester.js';
 
 // Bangun fragment SQL filter semester untuk tabel `tugas` (alias t).
 // Semester 1|2 -> tugas yang "hidup" (dibuat ATAU ada update progres subtugas) pada rentang itu.
+// PENTING: pakai rentang tanggal PENUH (termasuk tahun), bukan cuma EXTRACT(MONTH ..) --
+// filter berbasis bulan saja tanpa tahun bisa salah ambil/lewatkan baris, sama seperti bug
+// yang pernah bikin gauge histori semester kelihatan tidak berubah.
 function semesterFilterTugas(semester, tahun, params) {
   if ((semester !== 1 && semester !== 2) || !tahun) return '';
-  const [bulanAwal, bulanAkhir] = Semester.monthRange(semester);
-  params.push(bulanAwal, bulanAkhir);
+  const [awalSemester, akhirSemester] = Semester.rentang(tahun, semester);
+  params.push(awalSemester, akhirSemester);
   const i1 = params.length - 1;
   const i2 = params.length;
-  return ` AND (EXTRACT(MONTH FROM t.created_at) BETWEEN $${i1} AND $${i2} OR EXISTS (
+  return ` AND (t.created_at BETWEEN $${i1} AND $${i2} OR EXISTS (
       SELECT 1 FROM subtugas s2 JOIN subtugas_updates su2 ON su2.subtugas_id = s2.id
-      WHERE s2.tugas_id = t.id AND EXTRACT(MONTH FROM su2.created_at) BETWEEN $${i1} AND $${i2}
+      WHERE s2.tugas_id = t.id AND su2.created_at BETWEEN $${i1} AND $${i2}
     ))`;
 }
 
@@ -187,13 +190,18 @@ async function anggota(user, periodeId, semester) {
   let semFilter = '';
 
   if (semester === 1 || semester === 2) {
-      const [bulanAwal, bulanAkhir] = Semester.monthRange(semester);
-      params.push(bulanAwal, bulanAkhir);
-      const i1 = params.length - 1;
-      const i2 = params.length;
-      semFilter = ` AND (EXTRACT(MONTH FROM s.created_at) BETWEEN $${i1} AND $${i2} OR EXISTS (
-          SELECT 1 FROM subtugas_updates su WHERE su.subtugas_id = s.id AND EXTRACT(MONTH FROM su.created_at) BETWEEN $${i1} AND $${i2}
-        ))`;
+      // PENTING: pakai rentang tanggal PENUH (termasuk tahun periode ini), bukan cuma
+      // EXTRACT(MONTH ..) -- lihat catatan di semesterFilterTugas() di atas.
+      const tahun = await Semester.periodeTahun(periodeId);
+      if (tahun) {
+        const [awalSemester, akhirSemester] = Semester.rentang(tahun, semester);
+        params.push(awalSemester, akhirSemester);
+        const i1 = params.length - 1;
+        const i2 = params.length;
+        semFilter = ` AND (s.created_at BETWEEN $${i1} AND $${i2} OR EXISTS (
+            SELECT 1 FROM subtugas_updates su WHERE su.subtugas_id = s.id AND su.created_at BETWEEN $${i1} AND $${i2}
+          ))`;
+      }
     }
 
   const { rows: ringkasanRows } = await pool.query(

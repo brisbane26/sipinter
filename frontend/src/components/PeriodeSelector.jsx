@@ -75,8 +75,8 @@ export default function PeriodeSelector() {
 
         <select
           className="
-            h-11
-            w-52
+            h-9
+            w-48
             rounded-xl
             border
             border-gray-300
@@ -106,13 +106,13 @@ export default function PeriodeSelector() {
       {/* Semester */}
       <select
         className="
-          h-11
-          w-60
+          h-9
+          w-40
           rounded-xl
           border
           border-gray-300
           bg-white
-          px-4
+          px-2
           text-sm
           shadow-sm
           hover:border-gray-400
@@ -134,7 +134,7 @@ export default function PeriodeSelector() {
           <button
             type="button"
             onClick={() => setShowForm((v) => !v)}
-            className="h-11 px-5 rounded-xl border border-gray-300 bg-white text-gray-700 shadow-sm hover:bg-gray-50 hover:border-gray-400 transition flex items-center gap-2"
+            className="h-9 px-3 rounded-xl border border-gray-300 bg-white text-gray-700 shadow-sm hover:bg-gray-50 hover:border-gray-400 transition flex items-center gap-2"
           >
             <Plus size={17} />
             <span>Periode</span>

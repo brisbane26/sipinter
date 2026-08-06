@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import api from '../../lib/api'
+import { useAutoRefresh } from '../../lib/useAutoRefresh'
 import { usePeriode } from '../../context/PeriodeContext'
 import StatCard from '../../components/StatCard'
 import ProgressBar from '../../components/ProgressBar'
@@ -15,8 +16,7 @@ export default function Dashboard() {
   const { periode } = usePeriode()
   const [data, setData] = useState(null)
 
-  useEffect(() => {
-    setData(null)
+  useAutoRefresh(() => {
     api.get('/dashboard', { params: periode }).then((res) => setData(res.data))
   }, [periode])
 
