@@ -72,10 +72,6 @@ export default function Login() {
             {loading ? 'Memproses...' : 'Masuk'}
           </button>
         </form>
-        <p className="text-center text-white/50 text-xs mt-4">
-          Demo (password: <code>password</code>):<br />
-          kabalai@pupr.go.id · kasubag@pupr.go.id · katim.kpa@pupr.go.id · rudi@pupr.go.id
-        </p>
       </div>
     </div>
   )

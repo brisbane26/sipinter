@@ -83,7 +83,7 @@ export async function historiSemester(req, res) {
   const hasil = [];
 
   for (const semester of [1, 2]) {
-    const [awal, akhir] = Semester.rentang(periode.tahun, semester);
+    const [bulanAwal, bulanAkhir] = Semester.monthRange(semester);
 
     const { rows: tugasIdRows } = await pool.query(`SELECT id FROM tugas WHERE periode_id = $1`, [
       periode.id,
@@ -108,9 +108,10 @@ export async function historiSemester(req, res) {
       const { rows: latestPerSubtugas } = await pool.query(
         `SELECT DISTINCT ON (subtugas_id) subtugas_id, persentase
          FROM subtugas_updates
-         WHERE subtugas_id = ANY($1::bigint[]) AND created_at <= $2
+         WHERE subtugas_id = ANY($1::bigint[])
+           AND EXTRACT(MONTH FROM created_at) BETWEEN $2 AND $3
          ORDER BY subtugas_id, created_at DESC`,
-        [subtugasIds, akhir]
+        [subtugasIds, bulanAwal, bulanAkhir]
       );
 
       // Rata-rata dihitung atas SEMUA subtugas di periode ini (bukan cuma yang sudah
@@ -126,13 +127,17 @@ export async function historiSemester(req, res) {
       // SELURUH subtugas dalam 1 tugas itu rampung dulu baru terhitung.
       // "Selesai" di sini = progres sudah mencapai 100% pada saat itu, terlepas
       // dari status verifikasi (supaya tetap tercatat walau masih antre verifikasi).
-      subtugasSelesai = subtugasIds.filter((id) => (progressMap.get(id) || 0) >= 100).length;
+     subtugasSelesai = subtugasIds.filter((id) => (progressMap.get(id) || 0) >= 100).length;
     }
+
+    const persentaseSelesai =
+      subtugasIds.length > 0 ? Math.round((subtugasSelesai / subtugasIds.length) * 1000) / 10 : 0;
 
     hasil.push({
       semester,
       label: Semester.label(periode.tahun, semester),
       rata_rata_progress_akhir_semester: rataRata,
+      persentase_selesai: persentaseSelesai,
       jumlah_tugas: tugasIds.length,
       jumlah_subtugas: subtugasIds.length,
       subtugas_selesai: subtugasSelesai,
@@ -140,4 +145,35 @@ export async function historiSemester(req, res) {
   }
 
   return res.json({ periode, histori: hasil });
+}
+
+  export async function destroy(req, res) {
+  const periodeId = req.params.periode;
+
+  const { rows: periodeRows } = await pool.query(`SELECT * FROM periodes WHERE id = $1`, [periodeId]);
+  const periode = periodeRows[0];
+  if (!periode) {
+    return res.status(404).json({ message: 'Periode tidak ditemukan.' });
+  }
+
+  if (periode.status === 'aktif') {
+    return res.status(422).json({
+      message: 'Periode yang sedang aktif tidak bisa dihapus. Aktifkan periode lain dulu, baru hapus periode ini.',
+    });
+  }
+
+  const { rows: tugasRows } = await pool.query(`SELECT COUNT(*)::int AS total FROM tugas WHERE periode_id = $1`, [
+    periodeId,
+  ]);
+  if (tugasRows[0].total > 0) {
+    return res.status(422).json({
+      message: `Periode ini masih memiliki ${tugasRows[0].total} tugas. Hapus atau pindahkan tugas tersebut dulu sebelum menghapus periode ini.`,
+    });
+  }
+
+  await pool.query(`DELETE FROM periodes WHERE id = $1`, [periodeId]);
+
+  await ActivityLog.catat(req.user.id, `menghapus periode tahun ${periode.tahun}`, 'periode', periodeId);
+
+  return res.json({ message: 'Periode dihapus.' });
 }

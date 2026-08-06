@@ -38,6 +38,7 @@ router.get('/periodes', h(PeriodeController.index));
 router.get('/periodes/:periode/histori-semester', h(PeriodeController.historiSemester));
 router.post('/periodes', role('kabalai'), h(PeriodeController.store));
 router.post('/periodes/:periode/aktifkan', role('kabalai'), h(PeriodeController.aktifkan));
+router.delete('/periodes/:periode', role('kabalai'), h(PeriodeController.destroy));
 
 // Teams
 router.get('/teams', h(TeamController.index));
@@ -102,5 +103,6 @@ router.get('/notifications', h(NotificationController.index));
 router.get('/notifications/unread-count', h(NotificationController.unreadCount));
 router.post('/notifications/:id/read', h(NotificationController.markRead));
 router.post('/notifications/read-all', h(NotificationController.markAllRead));
+router.get('/notifications/stream', h(NotificationController.stream));
 
 export default router;

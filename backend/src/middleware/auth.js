@@ -7,9 +7,15 @@ export function hashToken(token) {
 
 export async function authenticate(req, res, next) {
   const header = req.headers.authorization || '';
-  const [scheme, token] = header.split(' ');
+  let [scheme, token] = header.split(' ');
 
   if (scheme !== 'Bearer' || !token) {
+    // Fallback: EventSource tidak bisa kirim header custom, jadi endpoint SSE
+    // (/notifications/stream) mengirim token lewat query string.
+    token = req.query.token;
+  }
+
+  if (!token) {
     return res.status(401).json({ message: 'Unauthenticated.' });
   }
 

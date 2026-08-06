@@ -26,6 +26,10 @@ export function rentang(tahun, semester) {
   return [new Date(Date.UTC(tahun, 6, 1, 0, 0, 0)), new Date(Date.UTC(tahun, 11, 31, 23, 59, 59))];
 }
 
+export function monthRange(semester) {
+  return semester === 1 ? [1, 6] : [7, 12];
+}
+
 export function label(tahun, semester) {
   return `Semester ${semester} ${tahun} (${semester === 1 ? 'Jan-Jun' : 'Jul-Des'})`;
 }

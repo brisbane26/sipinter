@@ -10,21 +10,19 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-    try {
-      const user = await login(email, password)
-      if (user.role === 'kepala_balai') navigate('/kepala-balai')
-      else if (user.role === 'ketua_tim') navigate('/ketua-tim')
-      else navigate('/anggota')
-    } catch (err) {
-      setError(err.response?.data?.message || 'Login gagal. Periksa email/password Anda.')
-    } finally {
-      setLoading(false)
-    }
+async function handleSubmit(e) {
+  e.preventDefault()
+  setError('')
+  setLoading(true)
+  try {
+    const user = await login(email, password)
+    navigate(`/${user.role}`)
+  } catch (err) {
+    setError(err.response?.data?.message || 'Login gagal. Periksa email/password Anda.')
+  } finally {
+    setLoading(false)
   }
+}
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
