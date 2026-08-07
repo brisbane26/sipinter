@@ -25,10 +25,10 @@ npm run dev           # jalan di http://localhost:8000
 ```
 
 Semua akun demo dari `npm run db:seed` memakai password: `password`
-- kabalai@pupr.go.id (Kepala Balai)
-- kasubag@pupr.go.id (Kasubag)
-- katim.kpa@pupr.go.id / katim.koi@pupr.go.id / katim.upb@pupr.go.id (Katim)
-- rudi@pupr.go.id, dewi@pupr.go.id, dst. (Anggota)
+- kabalai@pu.go.id (Kepala Balai)
+- kasubag@pu.go.id (Kasubag)
+- katim.kpa@pu.go.id / katim.koi@pu.go.id / katim.upb@pu.go.id (Katim)
+- rudi@pu.go.id, dewi@pu.go.id, dst. (Anggota)
 
 ### Catatan teknis backend
 - Autentikasi: token bearer (disimpan ter-hash di tabel `auth_tokens`), setara dengan Laravel Sanctum personal access token.

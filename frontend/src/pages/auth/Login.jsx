@@ -32,7 +32,7 @@ export default function Login() {
         <div className="text-center mb-6 text-white">
           <img src="/logo-pu.jpg" alt="Logo Kementerian PU" className="w-16 h-16 rounded-2xl object-cover mx-auto mb-3 shadow-lg" />
           <h1 className="text-xl font-semibold">SIPINTER</h1>
-          <p className="text-white/70 text-sm">Sistem tracking progress kerja internal Bapekom PU Wilayah I</p>
+          <p className="text-white/70 text-sm">Sistem monitoring progress kerja internal Bapekom PU Wilayah I</p>
         </div>
         <form onSubmit={handleSubmit} className="card p-6 space-y-4 bg-white">
           {error && <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
@@ -42,7 +42,7 @@ export default function Login() {
               type="email" required
               className="input focus:ring-pupr-blue-light"
               value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="nama@pupr.go.id"
+              placeholder="nama@pu.go.id"
             />
           </div>
           <div>
