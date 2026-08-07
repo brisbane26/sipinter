@@ -74,11 +74,13 @@ async function kabalaiKasubag(periodeId, semester, withVerifikasiQueue) {
 
   const deadlineParams = [periodeId];
   const semFilterDeadline = semesterFilterTugas(semester, tahun, deadlineParams);
+  
+  // UBAH 1: Pakai LEFT JOIN dan CASE WHEN supaya Tugas Umum tetap muncul di deadline dashboard
   const { rows: deadlineTerdekat } = await pool.query(
     `SELECT t.id, t.judul, t.deadline, t.status, t.progress, t.team_id,
-        json_build_object('id', tm.id, 'nama_tim', tm.nama_tim, 'kode_tim', tm.kode_tim) AS team
+        CASE WHEN tm.id IS NOT NULL THEN json_build_object('id', tm.id, 'nama_tim', tm.nama_tim, 'kode_tim', tm.kode_tim) ELSE NULL END AS team
      FROM tugas t
-     JOIN teams tm ON tm.id = t.team_id
+     LEFT JOIN teams tm ON tm.id = t.team_id
      WHERE t.periode_id = $1 AND t.status != 'Selesai' AND t.deadline IS NOT NULL ${semFilterDeadline}
      ORDER BY t.deadline ASC
      LIMIT 6`,
@@ -127,7 +129,8 @@ async function katim(user, periodeId, semester) {
   }
 
   const tahun = await Semester.periodeTahun(periodeId);
-  const ringkasanRow = await ringkasanTugas(periodeId, semester, 'AND t.team_id = $2', [team.id]);
+  // UBAH 2: Tambahkan "OR t.team_id IS NULL" agar Tugas Umum terhitung di ringkasan Katim
+  const ringkasanRow = await ringkasanTugas(periodeId, semester, 'AND (t.team_id = $2 OR t.team_id IS NULL)', [team.id]);
   const ringkasan = {
     total_tugas: ringkasanRow.total_tugas,
     sedang_berjalan: ringkasanRow.sedang_berjalan,
@@ -136,28 +139,38 @@ async function katim(user, periodeId, semester) {
   };
 
   const { rows: tugasIdRows } = await pool.query(
-    `SELECT id FROM tugas WHERE team_id = $1 AND periode_id = $2`,
+    `SELECT id FROM tugas WHERE (team_id = $1 OR team_id IS NULL) AND periode_id = $2`,
     [team.id, periodeId]
   );
   const tugasIds = tugasIdRows.map((r) => r.id);
+
+  // UBAH 3: Ambil ID Anggota dari Katim ini supaya subtugas bisa difilter
+  const { rows: memberRows } = await pool.query(
+    `SELECT user_id FROM team_members WHERE team_id = $1`,
+    [team.id]
+  );
+  // Masukkan juga ID Katim itu sendiri jika Katim ikut mengerjakan subtugas
+  const memberIds = memberRows.map(m => m.user_id);
+  memberIds.push(user.id);
 
   let subtugasTerlambat = [];
   let menungguVerifikasi = 0;
   let anggotaBelumUpdate = [];
 
-  if (tugasIds.length > 0) {
+  if (tugasIds.length > 0 && memberIds.length > 0) {
+    // Tambahkan filter "AND s.assigned_to = ANY($2::bigint[])" agar aman dari subtugas tim lain
     const { rows } = await pool.query(
       `SELECT s.*, json_build_object('id', u.id, 'name', u.name) AS assignee
        FROM subtugas s JOIN users u ON u.id = s.assigned_to
-       WHERE s.tugas_id = ANY($1::bigint[]) AND s.status = 'Terlambat'`,
-      [tugasIds]
+       WHERE s.tugas_id = ANY($1::bigint[]) AND s.assigned_to = ANY($2::bigint[]) AND s.status = 'Terlambat'`,
+      [tugasIds, memberIds]
     );
     subtugasTerlambat = rows;
 
     const { rows: countRows } = await pool.query(
       `SELECT COUNT(*)::int AS total FROM subtugas
-       WHERE tugas_id = ANY($1::bigint[]) AND status = 'Menunggu Verifikasi Katim'`,
-      [tugasIds]
+       WHERE tugas_id = ANY($1::bigint[]) AND assigned_to = ANY($2::bigint[]) AND status = 'Menunggu Verifikasi Katim'`,
+      [tugasIds, memberIds]
     );
     menungguVerifikasi = countRows[0].total;
 
@@ -165,18 +178,19 @@ async function katim(user, periodeId, semester) {
       `SELECT s.id, s.judul, s.assigned_to, s.deadline,
           json_build_object('id', u.id, 'name', u.name) AS assignee
        FROM subtugas s JOIN users u ON u.id = s.assigned_to
-       WHERE s.tugas_id = ANY($1::bigint[]) AND s.status = 'Belum Dimulai'`,
-      [tugasIds]
+       WHERE s.tugas_id = ANY($1::bigint[]) AND s.assigned_to = ANY($2::bigint[]) AND s.status = 'Belum Dimulai'`,
+      [tugasIds, memberIds]
     );
     anggotaBelumUpdate = belumRows;
   }
 
   const deadlineParams = [periodeId, team.id];
   const semFilterDeadline = semesterFilterTugas(semester, tahun, deadlineParams);
+  // Pastikan deadline mengambil Tugas Umum juga
   const { rows: deadlineTerdekat } = await pool.query(
     `SELECT t.id, t.judul, t.deadline, t.status, t.progress
      FROM tugas t
-     WHERE t.periode_id = $1 AND t.team_id = $2 AND t.status != 'Selesai' AND t.deadline IS NOT NULL ${semFilterDeadline}
+     WHERE t.periode_id = $1 AND (t.team_id = $2 OR t.team_id IS NULL) AND t.status != 'Selesai' AND t.deadline IS NOT NULL ${semFilterDeadline}
      ORDER BY t.deadline ASC
      LIMIT 6`,
     deadlineParams

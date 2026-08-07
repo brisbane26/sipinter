@@ -69,9 +69,26 @@ router.post('/tugas/:tugas/lampiran', uploadLampiranTugas.single('file'), h(Tuga
 // Subtugas (Katim atau Kasubag -> Anggota)
 router.get('/subtugas', h(SubtugasController.index));
 router.get('/subtugas/:subtugas', h(SubtugasController.show));
-router.post('/tugas/:tugas/subtugas', role('katim', 'kasubag'), h(SubtugasController.store));
-router.put('/subtugas/:subtugas', role('katim', 'kasubag'), h(SubtugasController.update));
+
+// UBAH: Tambahkan upload middleware agar bisa menerima multi file (array 'files')
+router.post(
+  '/tugas/:tugas/subtugas', 
+  role('katim', 'kasubag'), 
+  uploadLampiranTugas.array('files'), 
+  h(SubtugasController.store)
+);
+
+// UBAH: Tambahkan middleware uploadLampiranTugas.array('files') pada rute PUT
+router.put(
+  '/subtugas/:subtugas', 
+  role('katim', 'kasubag'), 
+  uploadLampiranTugas.array('files'), 
+  h(SubtugasController.update)
+);
 router.delete('/subtugas/:subtugas', role('katim', 'kasubag'), h(SubtugasController.destroy));
+
+// TAMBAHKAN BARIS INI UNTUK MENGHAPUS FILE LAMPIRAN:
+router.delete('/subtugas/files/:fileId', role('katim', 'kasubag', 'anggota'), h(SubtugasController.destroyFile));
 
 // Update progres + bukti (oleh Anggota pemilik subtugas)
 router.post(

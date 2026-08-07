@@ -12,17 +12,27 @@ import { Plus, Search, Layers, Pencil, Trash2, AlertTriangle } from 'lucide-reac
 
 const STATUSES = ['Belum Dimulai', 'Sedang Berjalan', 'Menunggu Verifikasi', 'Selesai', 'Terlambat']
 const TANPA_KODE = '__tanpa_kode__'
+const UMUM_KODE = 'TUGAS UMUM'
 
 function groupTugasByKodeTim(tugasList) {
   const groups = new Map()
   for (const t of tugasList) {
-    const kode = t.team?.kode_tim?.trim() || TANPA_KODE
-    if (!groups.has(kode)) {
-      groups.set(kode, { kode_tim: kode, nama_tim: t.team?.nama_tim || '-', items: [] })
+    if (!t.team_id) {
+      if (!groups.has(UMUM_KODE)) {
+        groups.set(UMUM_KODE, { kode_tim: UMUM_KODE, nama_tim: 'Tugas Lintas Tim', items: [] })
+      }
+      groups.get(UMUM_KODE).items.push(t)
+    } else {
+      const kode = t.team?.kode_tim?.trim() || TANPA_KODE
+      if (!groups.has(kode)) {
+        groups.set(kode, { kode_tim: kode, nama_tim: t.team?.nama_tim || '-', items: [] })
+      }
+      groups.get(kode).items.push(t)
     }
-    groups.get(kode).items.push(t)
   }
   return [...groups.values()].sort((a, b) => {
+    if (a.kode_tim === UMUM_KODE) return -1
+    if (b.kode_tim === UMUM_KODE) return 1
     if (a.kode_tim === TANPA_KODE) return 1
     if (b.kode_tim === TANPA_KODE) return -1
     return a.kode_tim.localeCompare(b.kode_tim)
@@ -82,7 +92,8 @@ export default function TugasListView({ basePath, canCreate, title, subtitle, gr
       setForm({ judul: '', deskripsi: '', deadline: '', team_id: '' })
       load()
     } catch (err) {
-      setError('Gagal membuat tugas. Periksa kembali data.')
+      // KRUSIAL: Tampilkan pesan error asli dari backend
+      setError(err.response?.data?.message || 'Gagal membuat tugas. Periksa kembali data.')
     } finally {
       setSaving(false)
     }
@@ -101,7 +112,7 @@ export default function TugasListView({ basePath, canCreate, title, subtitle, gr
       <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mb-4">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input className="input pl-9" placeholder="Cari judul atau deskripsi..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className="input pl-9" placeholder="     Cari judul atau deskripsi..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <select className="input sm:w-56" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="">Semua Status</option>
@@ -122,7 +133,7 @@ export default function TugasListView({ basePath, canCreate, title, subtitle, gr
           {groupedTugas.map((group, i) => (
             <div key={group.kode_tim} className={i > 0 ? 'pt-8 border-t border-gray-200' : ''}>
               <div className="flex items-center gap-2 mb-3">
-                <span className="inline-flex items-center gap-1.5 bg-brand-50 text-brand-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${group.kode_tim === UMUM_KODE ? 'bg-blue-100 text-blue-800' : 'bg-brand-50 text-brand-700'}`}>
                   <Layers size={12} />
                   {group.kode_tim === TANPA_KODE ? 'Tanpa Kode Tim' : group.kode_tim}
                 </span>
@@ -163,8 +174,8 @@ export default function TugasListView({ basePath, canCreate, title, subtitle, gr
             </div>
             <div>
               <label className="label">Assign ke Tim (Katim)</label>
-              <select required className="input" value={form.team_id} onChange={(e) => setForm({ ...form, team_id: e.target.value })}>
-                <option value="">Pilih tim...</option>
+              <select className="input" value={form.team_id} onChange={(e) => setForm({ ...form, team_id: e.target.value })}>
+                <option value="">Tugas Umum (Lintas Tim)</option>
                 {teams.map((t) => <option key={t.id} value={t.id}>{t.nama_tim} {t.kode_tim ? `(${t.kode_tim})` : ''} — Katim: {t.katim?.name}</option>)}
               </select>
             </div>
@@ -232,9 +243,12 @@ function TugasCard({ t, basePath, canManage, onChanged }) {
 
   return (
     <>
-      <Link to={`${basePath}/${t.id}`} className="card p-5 hover:shadow-md transition-shadow relative">
+      <Link to={`${basePath}/${t.id}`} className="card p-5 hover:shadow-md transition-shadow relative border-l-4 border-transparent hover:border-brand-500">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="font-semibold text-gray-900 pr-14">{t.judul}</h3>
+          <h3 className="font-semibold text-gray-900 pr-14 flex items-center gap-2">
+            {!t.team_id && <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] uppercase font-bold tracking-wider">Umum</span>}
+            {t.judul}
+          </h3>
           {canManage && (
             <div className="absolute top-4 right-4 flex items-center gap-1">
               <button onClick={openEdit} title="Edit tugas" className="p-1.5 rounded-md text-gray-400 hover:text-brand-600 hover:bg-brand-50">
@@ -246,7 +260,7 @@ function TugasCard({ t, basePath, canManage, onChanged }) {
             </div>
           )}
         </div>
-        <p className="text-sm text-gray-500 mt-1">Tim: {t.team?.nama_tim} · {t.subtugas_count} subtugas</p>
+        <p className="text-sm text-gray-500 mt-1">Tim: {t.team_id ? t.team?.nama_tim : 'Tidak terikat tim'} · {t.subtugas_count} subtugas</p>
         <div className="mt-3">
           <div className="flex justify-between text-xs text-gray-500 mb-1"><span>Progress</span><span>{t.progress}%</span></div>
           <ProgressBar value={t.progress} />

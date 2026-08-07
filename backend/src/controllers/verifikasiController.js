@@ -4,10 +4,6 @@ import * as NotificationService from '../services/notificationService.js';
 import { recalculateProgress } from '../utils/tugasHelper.js';
 import { fileUrl } from '../middleware/upload.js';
 
-/**
- * Tahap 1: Katim memverifikasi subtugas anggotanya (baik yang dia buat sendiri
- * maupun yang dibuat langsung oleh Kasubag untuk anggota timnya).
- */
 export async function verifikasiKatim(req, res) {
   const user = req.user;
   const subtugasId = req.params.subtugas;
@@ -83,10 +79,6 @@ export async function verifikasiKatim(req, res) {
   return res.json(fresh[0]);
 }
 
-/**
- * Tahap 2: Kasubag melakukan verifikasi akhir (double-check) atas subtugas
- * yang sudah disetujui katim -- baik subtugas buatan katim maupun buatan kasubag sendiri.
- */
 export async function verifikasiKasubag(req, res) {
   const user = req.user;
   const subtugasId = req.params.subtugas;
@@ -122,8 +114,6 @@ export async function verifikasiKasubag(req, res) {
     );
     updated = rows[0];
   } else {
-    // Ditolak kasubag -> kembali ke anggota untuk revisi, verifikasi katim direset
-    // supaya rantai verifikasi diulang dari awal (mencegah kelalaian double-check).
     const { rows } = await pool.query(
       `UPDATE subtugas SET status = 'Sedang Berjalan',
           verifikasi_katim_status = NULL,
@@ -146,11 +136,16 @@ export async function verifikasiKasubag(req, res) {
     `/anggota/subtugas/${updated.id}`
   );
 
-  const { rows: teamRows } = await pool.query(
-    `SELECT tm.katim_id FROM tugas t JOIN teams tm ON tm.id = t.team_id WHERE t.id = $1`,
-    [updated.tugas_id]
+  // PERBAIKAN: Gunakan JOIN ke team_members karena tabel users tidak punya team_id
+  const { rows: userRows } = await pool.query(
+    `SELECT tm.katim_id 
+     FROM team_members mem 
+     JOIN teams tm ON tm.id = mem.team_id 
+     WHERE mem.user_id = $1`,
+    [updated.assigned_to]
   );
-  const katimId = teamRows[0]?.katim_id;
+  
+  const katimId = userRows[0]?.katim_id;
   if (katimId) {
     await NotificationService.kirim(
       katimId,
@@ -170,85 +165,98 @@ export async function verifikasiKasubag(req, res) {
   return res.json(fresh[0]);
 }
 
-// Antrian verifikasi untuk Katim: subtugas timnya yang menunggu verifikasi katim.
 export async function antrianKatim(req, res) {
-  const user = req.user;
+  try {
+    const user = req.user;
 
-  const { rows } = await pool.query(
-    `SELECT s.*,
-        json_build_object(
-          'id', t.id, 'judul', t.judul,
-          'team', json_build_object('id', tm.id, 'nama_tim', tm.nama_tim, 'katim_id', tm.katim_id)
-        ) AS tugas,
-        json_build_object('id', a.id, 'name', a.name) AS assignee
-     FROM subtugas s
-     JOIN tugas t ON t.id = s.tugas_id
-     JOIN teams tm ON tm.id = t.team_id
-     JOIN users a ON a.id = s.assigned_to
-     WHERE tm.katim_id = $1 AND s.status = 'Menunggu Verifikasi Katim'`,
-    [user.id]
-  );
-
-  for (const s of rows) {
-    const { rows: updateRows } = await pool.query(
-      `SELECT * FROM subtugas_updates WHERE subtugas_id = $1 ORDER BY created_at DESC LIMIT 1`,
-      [s.id]
+    // PERBAIKAN: Gunakan team_members untuk mencari tim dari assignee
+    const { rows } = await pool.query(
+      `SELECT s.*,
+          json_build_object(
+            'id', t.id, 'judul', t.judul,
+            'team', CASE WHEN t_tm.id IS NOT NULL THEN json_build_object('id', t_tm.id, 'nama_tim', t_tm.nama_tim, 'katim_id', t_tm.katim_id) ELSE NULL END
+          ) AS tugas,
+          json_build_object('id', a.id, 'name', a.name) AS assignee
+       FROM subtugas s
+       JOIN tugas t ON t.id = s.tugas_id
+       JOIN users a ON a.id = s.assigned_to
+       JOIN team_members a_mem ON a_mem.user_id = a.id
+       JOIN teams assignee_tm ON assignee_tm.id = a_mem.team_id
+       LEFT JOIN teams t_tm ON t_tm.id = t.team_id
+       WHERE assignee_tm.katim_id = $1 AND s.status = 'Menunggu Verifikasi Katim'`,
+      [user.id]
     );
-    if (updateRows[0]) {
-      const { rows: fileRows } = await pool.query(
-        `SELECT * FROM subtugas_files WHERE subtugas_update_id = $1`,
-        [updateRows[0].id]
-      );
-      updateRows[0].files = fileRows.map((f) => ({ ...f, url: fileUrl(req, f.file_path) }));
-    }
-    s.updates = updateRows;
-  }
 
-  return res.json(rows);
+    for (const s of rows) {
+      const { rows: updateRows } = await pool.query(
+        `SELECT * FROM subtugas_updates WHERE subtugas_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [s.id]
+      );
+      if (updateRows[0]) {
+        const { rows: fileRows } = await pool.query(
+          `SELECT * FROM subtugas_files WHERE subtugas_update_id = $1`,
+          [updateRows[0].id]
+        );
+        updateRows[0].files = fileRows.map((f) => ({ ...f, url: fileUrl(req, f.file_path) }));
+      }
+      s.updates = updateRows;
+    }
+
+    return res.json(rows);
+  } catch (error) {
+    console.error("Error antrian Katim:", error);
+    return res.status(500).json({ message: "Terjadi kesalahan sistem." });
+  }
 }
 
-// Antrian verifikasi untuk Kasubag: subtugas (semua tim) + tugas yang menunggu verifikasi akhir.
 export async function antrianKasubag(req, res) {
-  const { rows: subtugas } = await pool.query(
-    `SELECT s.*,
-        json_build_object(
-          'id', t.id, 'judul', t.judul,
-          'team', json_build_object('id', tm.id, 'nama_tim', tm.nama_tim, 'katim_id', tm.katim_id)
-        ) AS tugas,
-        json_build_object('id', a.id, 'name', a.name) AS assignee
-     FROM subtugas s
-     JOIN tugas t ON t.id = s.tugas_id
-     JOIN teams tm ON tm.id = t.team_id
-     JOIN users a ON a.id = s.assigned_to
-     WHERE s.status = 'Menunggu Verifikasi Kasubag'`
-  );
-
-  for (const s of subtugas) {
-    const { rows: updateRows } = await pool.query(
-      `SELECT * FROM subtugas_updates WHERE subtugas_id = $1 ORDER BY created_at DESC LIMIT 1`,
-      [s.id]
+  try {
+    const { rows: subtugas } = await pool.query(
+      `SELECT s.*,
+          json_build_object(
+            'id', t.id, 'judul', t.judul,
+            'team', CASE WHEN t_tm.id IS NOT NULL THEN json_build_object('id', t_tm.id, 'nama_tim', t_tm.nama_tim, 'katim_id', t_tm.katim_id) ELSE NULL END
+          ) AS tugas,
+          json_build_object('id', a.id, 'name', a.name) AS assignee
+       FROM subtugas s
+       JOIN tugas t ON t.id = s.tugas_id
+       JOIN users a ON a.id = s.assigned_to
+       LEFT JOIN teams t_tm ON t_tm.id = t.team_id
+       WHERE s.status = 'Menunggu Verifikasi Kasubag'`
     );
-    if (updateRows[0]) {
-      const { rows: fileRows } = await pool.query(
-        `SELECT * FROM subtugas_files WHERE subtugas_update_id = $1`,
-        [updateRows[0].id]
+
+    for (const s of subtugas) {
+      const { rows: updateRows } = await pool.query(
+        `SELECT * FROM subtugas_updates WHERE subtugas_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [s.id]
       );
-      updateRows[0].files = fileRows.map((f) => ({ ...f, url: fileUrl(req, f.file_path) }));
+      if (updateRows[0]) {
+        const { rows: fileRows } = await pool.query(
+          `SELECT * FROM subtugas_files WHERE subtugas_update_id = $1`,
+          [updateRows[0].id]
+        );
+        updateRows[0].files = fileRows.map((f) => ({ ...f, url: fileUrl(req, f.file_path) }));
+      }
+      s.updates = updateRows;
     }
-    s.updates = updateRows;
+
+    const { rows: tugas } = await pool.query(
+      `SELECT t.*,
+          CASE WHEN tm.id IS NOT NULL THEN
+            json_build_object(
+              'id', tm.id, 'nama_tim', tm.nama_tim,
+              'katim', json_build_object('id', k.id, 'name', k.name)
+            )
+          ELSE NULL END AS team
+       FROM tugas t
+       LEFT JOIN teams tm ON tm.id = t.team_id
+       LEFT JOIN users k ON k.id = tm.katim_id
+       WHERE t.status = 'Menunggu Verifikasi'`
+    );
+
+    return res.json({ subtugas, tugas });
+  } catch (error) {
+    console.error("Error antrian Kasubag:", error);
+    return res.status(500).json({ message: "Terjadi kesalahan sistem." });
   }
-
-  const { rows: tugas } = await pool.query(
-    `SELECT t.*,
-        json_build_object(
-          'id', tm.id, 'nama_tim', tm.nama_tim,
-          'katim', json_build_object('id', k.id, 'name', k.name)
-        ) AS team
-     FROM tugas t
-     JOIN teams tm ON tm.id = t.team_id
-     JOIN users k ON k.id = tm.katim_id
-     WHERE t.status = 'Menunggu Verifikasi'`
-  );
-
-  return res.json({ subtugas, tugas });
 }
