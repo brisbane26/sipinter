@@ -224,10 +224,10 @@ Tersedia setelah menjalankan `npm run db:seed`. Semua akun memakai password: **`
 
 | Role | Email |
 |---|---|
-| Kepala Balai | `kabalai@pupr.go.id` |
-| Kasubag | `kasubag@pupr.go.id` |
-| Ketua Tim | `katim.kpa@pupr.go.id`, `katim.koi@pupr.go.id`, `katim.upb@pupr.go.id` |
-| Anggota | `rudi@pupr.go.id`, `dewi@pupr.go.id`, dst. |
+| Kepala Balai | `kabalai@pu.go.id` |
+| Kasubag | `kasubag@pu.go.id` |
+| Ketua Tim | `katim.kpa@pu.go.id`, `katim.koi@pu.go.id`, `katim.upb@pu.go.id` |
+| Anggota | `rudi@pu.go.id`, `dewi@pu.go.id`, dst. |
 
 ## Variabel Environment
 
