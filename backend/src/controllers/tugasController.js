@@ -5,7 +5,6 @@ import * as NotificationService from '../services/notificationService.js';
 import { buildPaginationResponse } from '../utils/paginate.js';
 import { classifyFileType, uploadToSupabase, fileUrl } from '../middleware/upload.js';
 
-// "Tugas" = pekerjaan yang diberikan Kasubag ke Katim.
 export async function index(req, res) {
   const user = req.user;
   const { periode_id: periodeId, semester } = await Semester.fromRequest(req);
@@ -20,9 +19,7 @@ export async function index(req, res) {
     conditions.push('1=0');
   }
 
-if (semester === 1 || semester === 2) {
-    // PENTING: pakai rentang tanggal PENUH (termasuk tahun periode ini), bukan cuma
-    // EXTRACT(MONTH ..) -- filter berbasis bulan saja tanpa tahun bisa salah ambil/lewatkan baris.
+  if (semester === 1 || semester === 2) {
     const tahun = await Semester.periodeTahun(periodeId);
     if (tahun) {
       const [awalSemester, akhirSemester] = Semester.rentang(tahun, semester);
@@ -38,7 +35,7 @@ if (semester === 1 || semester === 2) {
 
   if (user.role === 'katim') {
     params.push(user.id);
-    conditions.push(`EXISTS (SELECT 1 FROM teams tm WHERE tm.id = t.team_id AND tm.katim_id = $${params.length})`);
+    conditions.push(`(t.team_id IS NULL OR EXISTS (SELECT 1 FROM teams tm WHERE tm.id = t.team_id AND tm.katim_id = $${params.length}))`);
   } else if (user.role === 'anggota') {
     params.push(user.id);
     conditions.push(`EXISTS (SELECT 1 FROM subtugas s3 WHERE s3.tugas_id = t.id AND s3.assigned_to = $${params.length})`);
@@ -69,15 +66,17 @@ if (semester === 1 || semester === 2) {
   const { rows } = await pool.query(
     `SELECT t.*,
         (SELECT COUNT(*)::int FROM subtugas s WHERE s.tugas_id = t.id) AS subtugas_count,
-        json_build_object(
-          'id', tm.id, 'nama_tim', tm.nama_tim, 'kode_tim', tm.kode_tim, 'katim_id', tm.katim_id,
-          'katim', json_build_object('id', k.id, 'name', k.name)
-        ) AS team,
+        CASE WHEN tm.id IS NOT NULL THEN
+          json_build_object(
+            'id', tm.id, 'nama_tim', tm.nama_tim, 'kode_tim', tm.kode_tim, 'katim_id', tm.katim_id,
+            'katim', json_build_object('id', k.id, 'name', k.name)
+          )
+        ELSE NULL END AS team,
         json_build_object('id', c.id, 'name', c.name) AS creator,
         json_build_object('id', p.id, 'tahun', p.tahun, 'status', p.status) AS periode
      FROM tugas t
-     JOIN teams tm ON tm.id = t.team_id
-     JOIN users k ON k.id = tm.katim_id
+     LEFT JOIN teams tm ON tm.id = t.team_id
+     LEFT JOIN users k ON k.id = tm.katim_id
      JOIN users c ON c.id = t.created_by
      JOIN periodes p ON p.id = t.periode_id
      ${where}
@@ -97,12 +96,11 @@ if (semester === 1 || semester === 2) {
   );
 }
 
-// Hanya Kasubag yang boleh membuat tugas baru untuk Katim.
 export async function store(req, res) {
   const { judul, deskripsi = null, deadline = null, periode_id = null, team_id } = req.body || {};
 
-  if (!judul || !team_id) {
-    return res.status(422).json({ message: 'Data tugas tidak lengkap.' });
+  if (!judul) {
+    return res.status(422).json({ message: 'Judul tugas wajib diisi.' });
   }
 
   let finalPeriodeId = periode_id;
@@ -117,28 +115,34 @@ export async function store(req, res) {
     });
   }
 
-  const { rows } = await pool.query(
-    `INSERT INTO tugas (judul, deskripsi, periode_id, deadline, team_id, created_by, status, progress)
-     VALUES ($1,$2,$3,$4,$5,$6,'Belum Dimulai',0) RETURNING *`,
-    [judul, deskripsi, finalPeriodeId, deadline, team_id, req.user.id]
-  );
-  const tugas = rows[0];
-
-  const { rows: teamRows } = await pool.query(`SELECT * FROM teams WHERE id = $1`, [tugas.team_id]);
-  const team = teamRows[0];
-
-  if (team?.katim_id) {
-    await NotificationService.kirim(
-      team.katim_id,
-      'Tugas baru diterima',
-      `Tim Anda (${team.nama_tim}) mendapat tugas baru: ${tugas.judul}`,
-      `/katim/tugas/${tugas.id}`
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO tugas (judul, deskripsi, periode_id, deadline, team_id, created_by, status, progress)
+       VALUES ($1,$2,$3,$4,$5,$6,'Belum Dimulai',0) RETURNING *`,
+      [judul, deskripsi || null, finalPeriodeId, deadline || null, team_id || null, req.user.id]
     );
+    const tugas = rows[0];
+
+    if (tugas.team_id) {
+      const { rows: teamRows } = await pool.query(`SELECT * FROM teams WHERE id = $1`, [tugas.team_id]);
+      const team = teamRows[0];
+
+      if (team?.katim_id) {
+        await NotificationService.kirim(
+          team.katim_id,
+          'Tugas baru diterima',
+          `Tim Anda (${team.nama_tim}) mendapat tugas baru: ${tugas.judul}`,
+          `/katim/tugas/${tugas.id}`
+        );
+      }
+    }
+
+    await ActivityLog.catat(req.user.id, `membuat tugas ${tugas.judul}`, 'tugas', tugas.id);
+
+    return res.status(201).json(tugas);
+  } catch (error) {
+    return res.status(500).json({ message: "Kesalahan database: " + error.message });
   }
-
-  await ActivityLog.catat(req.user.id, `membuat tugas ${tugas.judul}`, 'tugas', tugas.id);
-
-  return res.status(201).json(tugas);
 }
 
 export async function show(req, res) {
@@ -146,19 +150,21 @@ export async function show(req, res) {
 
   const { rows: tugasRows } = await pool.query(
     `SELECT t.*,
-        json_build_object(
-          'id', tm.id, 'nama_tim', tm.nama_tim, 'kode_tim', tm.kode_tim, 'katim_id', tm.katim_id,
-          'katim', json_build_object('id', k.id, 'name', k.name, 'jabatan', k.jabatan, 'foto', k.foto),
-          'members', COALESCE((
-            SELECT json_agg(json_build_object('id', mu.id, 'name', mu.name))
-            FROM team_members mem JOIN users mu ON mu.id = mem.user_id WHERE mem.team_id = tm.id
-          ), '[]'::json)
-        ) AS team,
+        CASE WHEN tm.id IS NOT NULL THEN
+          json_build_object(
+            'id', tm.id, 'nama_tim', tm.nama_tim, 'kode_tim', tm.kode_tim, 'katim_id', tm.katim_id,
+            'katim', json_build_object('id', k.id, 'name', k.name, 'jabatan', k.jabatan, 'foto', k.foto),
+            'members', COALESCE((
+              SELECT json_agg(json_build_object('id', mu.id, 'name', mu.name))
+              FROM team_members mem JOIN users mu ON mu.id = mem.user_id WHERE mem.team_id = tm.id
+            ), '[]'::json)
+          )
+        ELSE NULL END AS team,
         json_build_object('id', c.id, 'name', c.name) AS creator,
         CASE WHEN vf.id IS NOT NULL THEN json_build_object('id', vf.id, 'name', vf.name) ELSE NULL END AS verifikator
      FROM tugas t
-     JOIN teams tm ON tm.id = t.team_id
-     JOIN users k ON k.id = tm.katim_id
+     LEFT JOIN teams tm ON tm.id = t.team_id
+     LEFT JOIN users k ON k.id = tm.katim_id
      JOIN users c ON c.id = t.created_by
      LEFT JOIN users vf ON vf.id = t.verifikasi_by
      WHERE t.id = $1`,
@@ -168,6 +174,20 @@ export async function show(req, res) {
   const tugas = tugasRows[0];
   if (!tugas) {
     return res.status(404).json({ message: 'Tugas tidak ditemukan.' });
+  }
+
+  // BACA SIAPA YANG SEDANG LOGIN: Jika Katim, berikan juga daftar anggota timnya
+  // agar Katim bisa assign anggotanya sendiri di Tugas Umum
+  if (req.user.role === 'katim') {
+    const { rows: myTeamRows } = await pool.query(
+      `SELECT COALESCE(json_agg(json_build_object('id', mu.id, 'name', mu.name)), '[]'::json) as members
+       FROM teams tm
+       JOIN team_members mem ON mem.team_id = tm.id
+       JOIN users mu ON mu.id = mem.user_id
+       WHERE tm.katim_id = $1`,
+      [req.user.id]
+    );
+    tugas.my_team_members = myTeamRows[0]?.members || [];
   }
 
   const { rows: subtugasRows } = await pool.query(
@@ -186,10 +206,17 @@ export async function show(req, res) {
   );
 
   for (const s of subtugasRows) {
+    // ambil lampiran yang nempel langsung di subtugas (upload dari Katim/Kasubag)
+    const { rows: subFileRows } = await pool.query(
+      `SELECT * FROM subtugas_files WHERE subtugas_id = $1`,
+      [s.id]
+    );
+    s.files = subFileRows.map((f) => ({ ...f, url: fileUrl(req, f.file_path) }));
+
     const { rows: updateRows } = await pool.query(
       `SELECT su.*, json_build_object('id', u.id, 'name', u.name) AS user
-       FROM subtugas_updates su JOIN users u ON u.id = su.user_id
-       WHERE su.subtugas_id = $1 ORDER BY su.created_at DESC`,
+      FROM subtugas_updates su JOIN users u ON u.id = su.user_id
+      WHERE su.subtugas_id = $1 ORDER BY su.created_at DESC`,
       [s.id]
     );
     for (const upd of updateRows) {
@@ -254,7 +281,6 @@ export async function destroy(req, res) {
   return res.json({ message: 'Tugas dihapus.' });
 }
 
-// Verifikasi tugas oleh Kasubag (final sign-off level tugas, setelah semua subtugas Selesai)
 export async function verifikasi(req, res) {
   const tugasId = req.params.tugas;
   const { keputusan, catatan = null } = req.body || {};
@@ -273,22 +299,25 @@ export async function verifikasi(req, res) {
   const tugas = rows[0];
   if (!tugas) return res.status(404).json({ message: 'Tugas tidak ditemukan.' });
 
-  const { rows: teamRows } = await pool.query(`SELECT * FROM teams WHERE id = $1`, [tugas.team_id]);
-  const team = teamRows[0];
+  if (tugas.team_id) {
+    const { rows: teamRows } = await pool.query(`SELECT * FROM teams WHERE id = $1`, [tugas.team_id]);
+    const team = teamRows[0];
 
-  await NotificationService.kirim(
-    team?.katim_id,
-    keputusan === 'disetujui' ? 'Tugas terverifikasi' : 'Tugas dikembalikan',
-    `Tugas '${tugas.judul}' telah ${keputusan} oleh kasubag.` + (catatan ? ` Catatan: ${catatan}` : ''),
-    `/katim/tugas/${tugas.id}`
-  );
+    if (team && team.katim_id) {
+      await NotificationService.kirim(
+        team.katim_id,
+        keputusan === 'disetujui' ? 'Tugas terverifikasi' : 'Tugas dikembalikan',
+        `Tugas '${tugas.judul}' telah ${keputusan} oleh kasubag.` + (catatan ? ` Catatan: ${catatan}` : ''),
+        `/katim/tugas/${tugas.id}`
+      );
+    }
+  }
 
   await ActivityLog.catat(req.user.id, `verifikasi tugas ${tugas.judul} (${keputusan})`, 'tugas', tugas.id);
 
   return res.json(tugas);
 }
 
-// Duplikasi tugas (beserta struktur subtugasnya) ke PERIODE lain (tahun anggaran baru).
 export async function duplicate(req, res) {
   const tugasId = req.params.tugas;
   const { periode_id, team_id = null, salin_subtugas = true } = req.body || {};
@@ -311,7 +340,7 @@ export async function duplicate(req, res) {
   const { rows: baruRows } = await pool.query(
     `INSERT INTO tugas (judul, deskripsi, periode_id, deadline, status, progress, created_by, team_id, duplicated_from_id)
      VALUES ($1,$2,$3,NULL,'Belum Dimulai',0,$4,$5,$6) RETURNING *`,
-    [tugas.judul, tugas.deskripsi, periode_id, req.user.id, team_id || tugas.team_id, tugas.id]
+    [tugas.judul, tugas.deskripsi, periode_id, req.user.id, team_id || tugas.team_id || null, tugas.id]
   );
   const baru = baruRows[0];
 

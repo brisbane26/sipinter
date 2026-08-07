@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS tugas (
     verifikasi_at TIMESTAMP NULL,
     verifikasi_catatan TEXT,
     created_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    team_id BIGINT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    team_id BIGINT REFERENCES teams(id) ON DELETE CASCADE,
     duplicated_from_id BIGINT REFERENCES tugas(id) ON DELETE SET NULL,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     updated_at TIMESTAMP NOT NULL DEFAULT now()
