@@ -157,7 +157,15 @@ cd backend
 cp .env.example .env
 ```
 
+<<<<<<< HEAD
+Semua akun demo dari `npm run db:seed` memakai password: `password`
+- kabalai@pu.go.id (Kepala Balai)
+- kasubag@pu.go.id (Kasubag)
+- katim.kpa@pu.go.id / katim.koi@pu.go.id / katim.upb@pu.go.id (Katim)
+- rudi@pu.go.id, dewi@pu.go.id, dst. (Anggota)
+=======
 Lengkapi `backend/.env`:
+>>>>>>> 30d95213f1c9e70a738a6beb2e285c4d412f73cd
 
 ```env
 PORT=8000

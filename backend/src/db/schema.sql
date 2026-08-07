@@ -135,6 +135,7 @@ CREATE TABLE IF NOT EXISTS subtugas_files (
     id BIGSERIAL PRIMARY KEY,
     subtugas_update_id BIGINT REFERENCES subtugas_updates(id) ON DELETE CASCADE,
     tugas_id BIGINT REFERENCES tugas(id) ON DELETE CASCADE,
+    subtugas_id BIGINT REFERENCES subtugas(id) ON DELETE CASCADE,
     file_path VARCHAR(255) NOT NULL,
     file_name VARCHAR(255),
     file_type VARCHAR(10) NOT NULL DEFAULT 'lainnya' CHECK (file_type IN ('foto', 'pdf', 'dokumen', 'lainnya')),

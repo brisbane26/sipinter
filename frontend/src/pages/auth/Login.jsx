@@ -42,7 +42,7 @@ export default function Login() {
               type="email" required
               className="input focus:ring-pupr-blue-light"
               value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="nama@pupr.go.id"
+              placeholder="nama@pu.go.id"
             />
           </div>
           <div>
