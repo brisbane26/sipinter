@@ -44,7 +44,7 @@ export default function SubtugasDetail() {
       setMsg('Progres berhasil diperbarui.')
       load()
     } catch (err) {
-      setMsg(err.response?.data?.message || 'Gagal menyimpan update.')
+      setMsg(err.response?.data?.message || 'Gagal menyimpan update. Pastikan koneksi internet stabil.')
     } finally {
       setSaving(false)
     }
@@ -53,6 +53,11 @@ export default function SubtugasDetail() {
   if (!subtugas) return <Loading />
   const locked = subtugas.locked
 
+  // Filter riwayat update agar sama sekali tidak menampilkan system note (untuk membersihkan sisa data lama)
+  const visibleUpdates = subtugas.updates?.filter(u => {
+    return !(u.catatan === 'Lampiran subtugas' || u.catatan === 'Lampiran awal subtugas' || u.catatan?.startsWith('Penambahan lampiran'));
+  }) || [];
+  
   return (
     <div>
       <Link to="/anggota/subtugas" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4">
@@ -75,6 +80,22 @@ export default function SubtugasDetail() {
             </div>
             <p className="text-sm text-gray-600 mt-3">{subtugas.deskripsi || 'Tidak ada deskripsi.'}</p>
             {subtugas.deadline && <p className="text-xs text-gray-400 mt-3">Deadline: {formatDate(subtugas.deadline)}</p>}
+
+            {/* Render Lampiran dari Katim/Kasubag di bagian atas (menyatu dengan detail subtugas) */}
+            {subtugas.files?.length > 0 && (
+              <div className="mt-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+                <p className="text-xs font-semibold text-blue-900 mb-2 flex items-center gap-1">
+                  <Paperclip size={13} /> Lampiran Subtugas
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {subtugas.files.map((f) => (
+                    <a key={f.id} href={f.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-brand-600 hover:underline bg-white px-2 py-1.5 rounded border border-gray-200 hover:border-brand-300 transition-colors">
+                      <Paperclip size={12} className="text-brand-500" /> {f.file_name || `Lampiran ${f.id}`}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {subtugas.verifikasi_katim_status === 'ditolak' && subtugas.verifikasi_katim_catatan && (
               <div className="mt-3 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">
@@ -105,7 +126,7 @@ export default function SubtugasDetail() {
               <p className="text-sm text-gray-500 flex items-center gap-2"><Lock size={15} /> Subtugas ini sudah terverifikasi dan progresnya terkunci.</p>
             ) : (
               <form onSubmit={handleUpdate} className="space-y-4">
-                {msg && <div className="bg-brand-50 text-brand-700 text-sm px-3 py-2 rounded-lg">{msg}</div>}
+                {msg && <div className={`text-sm px-3 py-2 rounded-lg ${msg.includes('Gagal') ? 'bg-red-50 text-red-700' : 'bg-brand-50 text-brand-700'}`}>{msg}</div>}
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <label className="label">Persentase Progres: {persentase}%</label>
@@ -117,9 +138,22 @@ export default function SubtugasDetail() {
                   </div>
                   <div className="sm:col-span-2">
                     <label className="label">Bukti Kerja (foto, PDF, Word, Excel, dll)</label>
-                    <label className="flex flex-col items-center justify-center gap-1 border-2 border-dashed border-gray-300 rounded-lg py-6 cursor-pointer hover:border-brand-400 text-sm text-gray-500">
+                    <label className="flex flex-col items-center justify-center gap-1 border-2 border-dashed border-gray-300 rounded-lg py-6 px-4 cursor-pointer hover:border-brand-400 text-sm text-gray-500 text-center">
                       <UploadCloud size={22} />
-                      {files.length ? `${files.length} file dipilih` : 'Klik untuk pilih file (bisa lebih dari satu)'}
+                      
+                      {files.length > 0 ? (
+                        <div className="flex flex-col items-center mt-2 w-full">
+                          <span className="font-semibold text-brand-600 mb-1">{files.length} file dipilih:</span>
+                          {files.map((f, index) => (
+                            <span key={index} className="text-xs text-gray-600 truncate max-w-xs sm:max-w-sm w-full">
+                              • {f.name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span>Klik untuk pilih file (bisa lebih dari satu)</span>
+                      )}
+
                       <input type="file" multiple hidden accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.zip" onChange={(e) => setFiles(Array.from(e.target.files))} />
                     </label>
                   </div>
@@ -131,9 +165,9 @@ export default function SubtugasDetail() {
 
           <div className="card p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Riwayat Update</h2>
-            {!subtugas.updates?.length ? <p className="text-sm text-gray-400">Belum ada riwayat.</p> : (
+            {visibleUpdates.length === 0 ? <p className="text-sm text-gray-400">Belum ada riwayat progres dari anggota.</p> : (
               <div className="grid sm:grid-cols-2 gap-4">
-                {subtugas.updates.map((u) => (
+                {visibleUpdates.map((u) => (
                   <div key={u.id} className="border border-gray-100 rounded-lg p-4">
                     <div className="flex justify-between text-sm">
                       <span className="font-medium text-gray-800">{u.persentase}% — {u.status}</span>
